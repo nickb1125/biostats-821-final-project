@@ -28,14 +28,16 @@ The predict_playoff_picture() function returns the ordered probabilities of each
 from predictor import predict_playoff_picture
 predict_playoff_picture()
 
-Team  |  NBA FINALS  |  Conference Finals  |  Conference Semifinals  |  First Round    
-____________________________________________________________________________________
-LAL   |      40%     |         60%         |           85%           |      100%
-BOS   |      30%     |         60%         |           97%           |      100%
-HOU   |      28%     |         32%         |           70%           |      80%
-MAI   |      10%     |         20%         |           30%           |      50%
-
-                            ........................
+| Team | Finals | Conference Finals | Conference Semifinals | First Round |
+| --- | --- | --- | --- | --- |
+| Brooklyn Nets | 30% | 60% | 80% | 95% |
+| Los Angeles Lakers | 25% | 55% | 75% | 90% |
+| Utah Jazz | 20% | 50% | 70% | 85% |
+| Milwaukee Bucks | 15% | 45% | 65% | 80% |
+| Philadelphia 76ers | 10% | 40% | 60% | 75% |
+| Phoenix Suns | 5% | 35% | 55% | 70% |
+| Denver Nuggets | 5% | 30% | 50% | 65% |
+| Miami Heat | 4% | 25% | 45% | 60% |
 
 Teams likely to make the NBA finals:
 1. LAL - 35%
