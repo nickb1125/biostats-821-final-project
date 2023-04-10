@@ -39,22 +39,6 @@ predict_playoff_picture()
 | Denver Nuggets | 5% | 30% | 50% | 65% |
 | Miami Heat | 4% | 25% | 45% | 60% |
 
-Teams likely to make the NBA finals:
-1. LAL - 35%
-2. BOS - 30%
-3. HOU - 25%
-4. MIL - 10%
-
-Teams likely to make the Conference Finals:
-1. LAL - 80%
-2. HOU - 70%
-3. BOS - 60%
-4. MIL - 50%
-5. MIA - 20%
-6. PHI - 10%
-7. DEN - 5%
-8. TOR - 5%
-
 ### Model
 
 The model used in this project is a multilayer-perceptron trained on historical NBA playoff data. The model uses features such as average point differential, ELO, and team statistics to predict the outcome of playoff games. 
