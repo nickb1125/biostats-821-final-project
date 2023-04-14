@@ -338,3 +338,24 @@ class training_dataset:
             training = self.year(year_load).get_train_for_all_playoff_games(injury_adjusted=injury_adjusted, avg_minutes_played_cutoff=avg_minutes_played_cutoff)
             self.training_sets_cache.update( {year_load : 
                                               {f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}" : training} })
+
+class current_state:
+    def __init__(self):
+        if datetime.datetime.now().month <= 6:
+            self.year = datetime.datetime.now().year - 1
+        else:
+            self.year = datetime.datetime.now().year
+        self.created_on = datetime.datetime.now()
+        self.year_cache = dict()
+
+    @property
+    def current_year(self):
+        if ((self.created_on.day != datetime.datetime.now().day) and (self.created_on.hour != datetime.datetime.now().hour)) or (len(self.year_cache.keys()) == 0):
+            self.year_cache = dict({"current" : year(self.year)})
+        return self.year_cache 
+
+    def get_current_injuries(self):
+        pass
+    
+    def get_current_matchup_predictors(self, home_team_id : int, away_team_id:int, injury_adjusted : bool, avg_minutes_played_cutoff : int):
+        pass
