@@ -1,47 +1,67 @@
-nba_team_abbs = pd.DataFrame(teams.get_teams()).abbreviation
+nba_team_ids = pd.DataFrame(teams.get_teams()).id
 
 class year:
     def __init__(self, year):
         self.year = year
-        self.season = str(self.year) + "-" + str(self.year-1999)
+        next_year_abb = str(self.year-1999)
+        if len(next_year_abb) == 1:
+            next_year_abb = '0' + next_year_abb
+        self.season = str(self.year) + "-" + next_year_abb
         self.game_data_cache = pd.DataFrame()
         self.playoff_game_data_cache = pd.DataFrame()
         self.playoff_boxes_cache = pd.DataFrame()
         self.regular_boxes_cache = pd.DataFrame()
         self.injured_cache = dict()
-        self.playoff_player_info_cache = pd.DataFrame()
+        self.roster_info_cache = pd.DataFrame()
         self.regular_boxes_cache_only_played = pd.DataFrame()
+        print(f"-->Loading data for {self.season}...")
+        loader_1 = self.roster_info.copy()
+        loader_2 = self.game_data.copy()
+        loader_3 = self.regular_boxes.copy()
+        loader_4 = self.regular_boxes_summary.copy()
+        loader_5 = self.playoff_game_data.copy()
+        loader_6 = self.playoff_boxes.copy()
+        loader_7 = self.sit_or_injured_playoff
 
     @property
-    def playoff_player_info(self):
-        if self.playoff_player_info_cache.empty:
-            print("Loading player info for year for first time.")
+    def roster_info(self):
+        if (self.roster_info_cache.empty) or (datetime.datetime.now().year in [self.year, self.year + 1]):
+            print("---->Loading or updating player info...")
             all_players = []
-            for team_id in tqdm.tqdm(self.playoff_boxes.TEAM_ID.unique()):
+            for team_id in self.regular_boxes.TEAM_ID.unique():
                 roster = endpoints.commonteamroster.CommonTeamRoster(team_id = team_id, season = self.season).get_data_frames()[0]
                 all_players.append(roster)
                 time.sleep(1)
             all_players = pd.concat(all_players)
-            self.playoff_player_info_cache = all_players[["TeamID", "PLAYER_ID", "POSITION"]]
-        return self.playoff_player_info_cache
+            self.roster_info_cache = all_players[["TeamID", "PLAYER_ID", "POSITION"]].rename({"TeamID" : "TEAM_ID"}, axis = 1)
+        return self.roster_info_cache
     
     @property
     def game_data(self) -> None:
         """Set game data in object cache in long format."""
         if self.game_data_cache.shape[0] == 0:
-            print("Loading resular season data for this year for the first time.")
+            print("---->Loading regular season game data for this year for the first time...")
             try:
-                self.game_data_cache = endpoints.leaguegamefinder.LeagueGameFinder(season_type_nullable = SeasonType.regular, season_nullable = self.season).get_data_frames()[0].query("TEAM_ABBREVIATION in @nba_team_abbs")
+                all_games = endpoints.leaguegamefinder.LeagueGameFinder(season_type_nullable = SeasonType.regular, season_nullable = self.season).get_data_frames()[0].query("TEAM_ID in @nba_team_ids")
             except JSONDecodeError:
                 raise JSONDecodeError('NBA API Timeout. Try again later.')
-            return self.game_data_cache
-        if datetime.datetime.now().year in [self.year, self.year + 1]:
+        elif datetime.datetime.now().year in [self.year, self.year + 1]:
             print("Updating resular season game data.")
             try:
-                self.game_data_cache = endpoints.leaguegamefinder.LeagueGameFinder(season_type_nullable = SeasonType.regular, season_nullable = self.season).get_data_frames()[0].query("TEAM_ABBREVIATION in @nba_team_abbs")
+                all_games = endpoints.leaguegamefinder.LeagueGameFinder(season_type_nullable = SeasonType.regular, season_nullable = self.season).get_data_frames()[0].query("TEAM_ID in @nba_team_ids")
             except JSONDecodeError:
                 raise JSONDecodeError('NBA API Timeout. Try again later.')
+        else:
             return self.game_data_cache
+        all_games['HOME_AWAY'] = ["H" if x == 1 else "A" for x in all_games.MATCHUP.str.contains("vs")]
+        all_games = all_games[['GAME_ID', 'GAME_DATE', 'HOME_AWAY', 'TEAM_ID', 'TEAM_ABBREVIATION', 'PTS', 'FGM', 'FGA', 'FG_PCT', 
+                                        'FG3M', 'FG3A', 'FG3_PCT', 'FTM', 'FTA', 'FT_PCT', 'OREB', 'DREB',
+                                        'REB', 'AST', 'STL', 'BLK', 'TOV', 'PF', 'PLUS_MINUS']].copy()
+        all_games = all_games.pivot(index='GAME_ID', columns='HOME_AWAY').reset_index()
+        all_games.columns = all_games.columns.map(lambda x: "_".join(x))
+        all_games["OUTCOME"] = [0 if PLUS_MINUS_H < 0 else 1 for PLUS_MINUS_H in all_games.PLUS_MINUS_H]
+        all_games = all_games.rename(columns = {'GAME_DATE_H' : 'GAME_DATE', "GAME_ID_" : "GAME_ID"}).drop(["GAME_DATE_A"], axis = 1).copy()
+        self.game_data_cache = all_games.query("TEAM_ID_H in @nba_team_ids & TEAM_ID_A in @nba_team_ids")
         return self.game_data_cache
         
 
@@ -49,44 +69,22 @@ class year:
     def regular_boxes(self) -> None:
         """Set regular season player box summaries"""
         if self.regular_boxes_cache.shape[0] == 0:
-            print("Loading regular season box data for this year for the first time.")
+            print("---->Loading regular season player box data for this year for the first time...")
             try:
-                pull = endpoints.PlayerGameLogs(season_type_nullable = SeasonType.regular, season_nullable = self.season).get_data_frames()[0].query("TEAM_ABBREVIATION in @nba_team_abbs")
-                self.regular_boxes_cache_only_played = pull.copy()
-                result = []
-                for _, row in tqdm.tqdm(self.game_data[['TEAM_ID', 'GAME_ID']].iterrows()):
-                    # loop through each player_id for the corresponding team
-                    for player_id in self.get_team_rosters_from_regular_season()[row['TEAM_ID']]:
-                        # create a copy of the row with a new column for the player_id
-                        new_row = row.copy()
-                        new_row['PLAYER_ID'] = player_id
-                        result.append(new_row)
-                result = pd.DataFrame(result)
-                self.regular_boxes_cache = result.merge(pull, how = 'left', on = ['GAME_ID', 'TEAM_ID', 'PLAYER_ID'])
+                self.regular_boxes_cache = endpoints.PlayerGameLogs(season_type_nullable = SeasonType.regular, season_nullable = self.season).get_data_frames()[0].query("TEAM_ID in @nba_team_ids")
             except JSONDecodeError:
                 raise JSONDecodeError('NBA API Timeout. Try again later.')
         elif datetime.datetime.now().year in [self.year, self.year + 1]:
-            print("Updating resular season box data.")
+            print("---->Updating resular season box data...")
             try:
-                pull = endpoints.PlayerGameLogs(season_type_nullable = SeasonType.regular, season_nullable = self.season).get_data_frames()[0].query("TEAM_ABBREVIATION in @nba_team_abbs")
-                self.regular_boxes_cache_only_played = pull.copy()
-                result = []
-                for _, row in tqdm.tqdm(self.game_data[['TEAM_ID', 'GAME_ID']].iterrows()):
-                    # loop through each player_id for the corresponding team
-                    for player_id in self.get_team_rosters_from_regular_season()[row['TEAM_ID']]:
-                        # create a copy of the row with a new column for the player_id
-                        new_row = row.copy()
-                        new_row['PLAYER_ID'] = player_id
-                        result.append(new_row)
-                result = pd.DataFrame(result)
-                self.regular_boxes_cache = result.merge(pull, how = 'left', on = ['GAME_ID', 'TEAM_ID', 'PLAYER_ID'])
+                self.regular_boxes_cache = endpoints.PlayerGameLogs(season_type_nullable = SeasonType.regular, season_nullable = self.season).get_data_frames()[0].query("TEAM_ID in @nba_team_ids")
             except JSONDecodeError:
                 raise JSONDecodeError('NBA API Timeout. Try again later.')
         return self.regular_boxes_cache
 
     @property
     def regular_boxes_summary(self):
-        regular_boxes = self.regular_boxes
+        regular_boxes = self.regular_boxes.copy()
         regular_boxes_summary = regular_boxes[['TEAM_ID', 'PLAYER_ID', 'MIN', 'PTS', 'FGM', 'FGA', 'FG_PCT', 
                                                 'FG3M', 'FG3A', 'FG3_PCT', 'FTM', 'FTA', 'FT_PCT', 'OREB', 'DREB',
                                                 'REB', 'AST', 'STL', 'BLK', 'TOV', 'PF', 'PLUS_MINUS']].fillna(0).groupby(["PLAYER_ID", "TEAM_ID"]).agg(['mean']).reset_index()
@@ -98,17 +96,17 @@ class year:
     def playoff_game_data(self) -> None:
         """Set playoff game data in object cache in wide format."""
         if self.playoff_game_data_cache.shape[0] == 0:
-            print("Loading playoff game data for this year for the first time.")
+            print("---->Loading playoff game data for this year for the first time...")
             try:
                 all_games = endpoints.leaguegamefinder.LeagueGameFinder(season_type_nullable = SeasonTypePlayoffs.playoffs, 
-                                              season_nullable = self.season).get_data_frames()[0].query("TEAM_ABBREVIATION in @nba_team_abbs")
+                                              season_nullable = self.season).get_data_frames()[0].query("TEAM_ID in @nba_team_ids")
             except JSONDecodeError:
                 raise JSONDecodeError('NBA API Timeout. Try again later.')
         elif datetime.datetime.now().year in [self.year, self.year + 1]:
             print("Updating playoff game data.")
             try:
                 all_games = endpoints.leaguegamefinder.LeagueGameFinder(season_type_nullable = SeasonTypePlayoffs.playoffs, 
-                                              season_nullable = self.season).get_data_frames()[0].query("TEAM_ABBREVIATION in @nba_team_abbs")
+                                              season_nullable = self.season).get_data_frames()[0].query("TEAM_ID in @nba_team_ids")
             except JSONDecodeError:
                 raise JSONDecodeError('NBA API Timeout. Try again later.')
         else:
@@ -121,70 +119,43 @@ class year:
         all_games.columns = all_games.columns.map(lambda x: "_".join(x))
         all_games["OUTCOME"] = [0 if PLUS_MINUS_H < 0 else 1 for PLUS_MINUS_H in all_games.PLUS_MINUS_H]
         all_games = all_games.rename(columns = {'GAME_DATE_H' : 'GAME_DATE', "GAME_ID_" : "GAME_ID"}).drop(["GAME_DATE_A"], axis = 1).copy()
-        self.playoff_game_data_cache = all_games.replace({'NOH': 'NOP',
-                               'NOK': 'NOP',
-                               'NOH': 'NOP',
-                               'NJN': 'BKN',
-                               'SEA': 'OKC',
-                               'VAN': 'MEM',
-                               'KCK': 'SAC',
-                               'SDC': 'LAC',
-                               'WSB': 'WAS',
-                               'PHO': 'PHX'}, regex=True).query("TEAM_ABBREVIATION_H in @nba_team_abbs & TEAM_ABBREVIATION_A in @nba_team_abbs")
+        self.playoff_game_data_cache = all_games.query("TEAM_ID_H in @nba_team_ids & TEAM_ID_A in @nba_team_ids")
         return self.playoff_game_data_cache
 
     @property
     def playoff_boxes(self):
         """Load player boxes for all playoff games."""
         if self.playoff_boxes_cache.shape[0] == 0:
-            print("Loading playoff box data for this year for the first time.")
+            print("---->Loading playoff player box data for this year for the first time...")
             try:
                 post_boxes = endpoints.PlayerGameLogs(season_type_nullable = SeasonTypePlayoffs.playoffs, 
-                                              season_nullable = self.season).get_data_frames()[0].query("TEAM_ABBREVIATION in @nba_team_abbs")
+                                              season_nullable = self.season).get_data_frames()[0].query("TEAM_ID in @nba_team_ids")
             except JSONDecodeError:
                 raise JSONDecodeError('NBA API Timeout. Try again later.')
         elif datetime.datetime.now().year in [self.year, self.year + 1]:
-            print("Updating playoff box season game data.")
+            print("---->Updating playoff box season game data.")
             try:
                 post_boxes = endpoints.PlayerGameLogs(season_type_nullable = SeasonTypePlayoffs.playoffs, 
-                                              season_nullable = self.season).get_data_frames()[0].query("TEAM_ABBREVIATION @nba_team_abbs")
+                                              season_nullable = self.season).get_data_frames()[0].query("TEAM_ID in @nba_team_ids")
             except JSONDecodeError:
                 raise JSONDecodeError('NBA API Timeout. Try again later.')
         else:
             return self.playoff_boxes_cache 
-        self.playoff_boxes_cache = post_boxes[['GAME_ID', 'TEAM_ID', 'PLAYER_ID', 'GAME_DATE', 'MIN', 'PTS', 'FGM', 'FGA', 'FG_PCT', 
+        playoff_boxes_cache = post_boxes[['GAME_ID', 'TEAM_ID', 'PLAYER_ID', 'GAME_DATE', 'MIN', 'PTS', 'FGM', 'FGA', 'FG_PCT', 
                                                 'FG3M', 'FG3A', 'FG3_PCT', 'FTM', 'FTA', 'FT_PCT', 'OREB', 'DREB',
                                                 'REB', 'AST', 'STL', 'BLK', 'TOV', 'PF', 'PLUS_MINUS']]
+        check_play_time_dist = self.regular_boxes_summary.copy()
+        check_play_time_dist['Regular_Season_Play_Time_Rank'] = check_play_time_dist.groupby("TEAM_ID").MIN_mean.rank(ascending=False)
+        player_team_rank = check_play_time_dist[['PLAYER_ID', 'Regular_Season_Play_Time_Rank']]
+        self.playoff_boxes_cache = playoff_boxes_cache.merge(player_team_rank, how = 'left', on = 'PLAYER_ID')
         return self.playoff_boxes_cache 
-            
-
-    def get_regular_season_summary_stats(self):
-        """Get team regular season summary statistics for all teams."""
-        summary = self.game_data[['TEAM_ABBREVIATION', 'PTS', 'FGM', 'FGA', 'FG_PCT', 
-                                  'FG3M', 'FG3A', 'FG3_PCT', 'FTM', 'FTA', 'FT_PCT', 'OREB', 'DREB',
-                                  'REB', 'AST', 'STL', 'BLK', 'TOV', 'PF', 'PLUS_MINUS']].groupby('TEAM_ABBREVIATION').fillna(0).agg(['mean']).reset_index()
-        summary.columns = summary.columns.map(lambda x: "_".join(x))
-        summary = summary.rename(columns = {'TEAM_ABBREVIATION_' : 'TEAM_ABBREVIATION'}).copy()
-        summary_filtered = summary.replace({'NOH': 'NOP',
-                               'NOK': 'NOP',
-                               'NOH': 'NOP',
-                               'NJN': 'BKN',
-                               'SEA': 'OKC',
-                               'VAN': 'MEM',
-                               'KCK': 'SAC',
-                               'SDC': 'LAC',
-                               'WSB': 'WAS',
-                               'PHO': 'PHX'}, regex=True).query("TEAM_ABBREVIATION in @nba_team_abbs")
-        return(summary_filtered)
 
     def get_playoff_results_up_to_date(self, date : str): # Input string as "%Y-%m-%d"
         return self.playoff_game_data.query("GAME_DATE < @date")
 
     def get_team_rosters_from_regular_season(self):
         """Organize dictionary where keys are team_ids and items are lists of player_ids."""
-        if self.regular_boxes_cache_only_played.empty:
-            load = self.regular_boxes
-        rosters_df = self.regular_boxes_cache_only_played[['PLAYER_ID', 'TEAM_ID']].drop_duplicates()
+        rosters_df = self.roster_info[['PLAYER_ID', 'TEAM_ID']].drop_duplicates()
         rosters_dict = {team: players.tolist() for team, players in rosters_df.groupby('TEAM_ID')['PLAYER_ID']}
         return(rosters_dict)
         
@@ -217,9 +188,10 @@ class year:
     
     def reweight_replacements_for_missing_player(self, possible_replacement_player_ids, remove_injured, injured_player_id):
         """Reweights replacement players for ONE missing player"""
-        possile_replacement_box_summary = self.regular_boxes_summary.query("PLAYER_ID in @possible_replacement_player_ids").sort_values(by = "MIN_mean", ascending=False)
+        team_id = remove_injured.reset_index(drop = 1).TEAM_ID[0]
+        possile_replacement_box_summary = self.regular_boxes_summary.query("(PLAYER_ID in @possible_replacement_player_ids) & (TEAM_ID == @team_id)").sort_values(by = "MIN_mean", ascending=False)
         min_diff = self.regular_boxes_summary.query("PLAYER_ID == @injured_player_id").reset_index(drop = 0).MIN_mean[0]
-        max_minutes = 30
+        max_minutes = min_diff.copy() # set max minutes to number of minutes adjusted player was playing and incriment up if needed
         while (min_diff > 0) & (max_minutes <= 40):
             replacement_df = []
             for index, row in possile_replacement_box_summary.iterrows():
@@ -238,50 +210,131 @@ class year:
                     updated_stats['PLAYER_ID'] = row.PLAYER_ID
                     updated_stats['TEAM_ID'] = row.TEAM_ID
                     replacement_df.append(updated_stats)
-                    max_minutes += 1
+            max_minutes += 1
         replacement_df = pd.concat(replacement_df)
         if min_diff > 0:
             raise UserWarning(f"Warning: Not enough eligible players on bench to account for all injuries with full 40 minutes of play for injury_id {injured_player_id}.")
         return replacement_df
 
-    def reweight_stats(self, team_id, game_id, top_n_players = 10):
+    def reweight_stats(self, team_id, game_id, avg_minutes_played_cutoff):
         """Get injury reweighted predicted stats."""
         injured = self.sit_or_injured_playoff[team_id][game_id]
-        team_boxes = self.regular_boxes_summary.query("TEAM_ID == @team_id")
-        team_boxes = team_boxes.merge(self.playoff_player_info, how = 'left', on = "PLAYER_ID").sort_values(by = "MIN_mean", ascending=False).copy()
-        injured = team_boxes[:top_n_players].query("PLAYER_ID in @injured").reset_index(drop = 1).PLAYER_ID.tolist()
-        remove_injured = team_boxes.query("PLAYER_ID not in @injured")
+        on_roster_still = self.get_team_rosters_from_regular_season()[team_id]
+        injured = self.regular_boxes_summary.query("(TEAM_ID == @team_id) & (PLAYER_ID in @injured) & (MIN_mean > @avg_minutes_played_cutoff) & (PLAYER_ID in @on_roster_still)").reset_index(drop = 1).PLAYER_ID.tolist() # remove players below injury adjustment cutoff (we dont care if a player that doesnt play is injured)
+        remove_injured = self.regular_boxes_summary.query("(PLAYER_ID not in @injured) & (PLAYER_ID in @on_roster_still) & (TEAM_ID == @team_id)")
         for injured_player_id in injured:
             try:
-                injured_pos = self.playoff_player_info.query("PLAYER_ID == @injured_player_id").reset_index(drop = 1).POSITION[0]
+                injured_pos = self.roster_info.query("PLAYER_ID == @injured_player_id").reset_index(drop = 1).POSITION[0]
             except KeyError:
                 continue  # player is no longer on roster
-            possible_replacement_player_ids = self.playoff_player_info.query("TeamID == @team_id & (POSITION in @injured_pos | @injured_pos in POSITION)").reset_index(drop = 1).PLAYER_ID.tolist()
+            # ['G-F', 'F-G', 'G', 'C', 'F-C', 'F', 'C-F']
+            if (injured_pos == 'G-F') or (injured_pos == 'F-G'):
+                possible_replacement_player_ids = self.roster_info.query("(PLAYER_ID in @on_roster_still) & ('G' in POSITION | 'F' in POSITION) & (PLAYER_ID not in @injured)").reset_index(drop = 1).PLAYER_ID.tolist()
+            if injured_pos == 'G':
+                possible_replacement_player_ids = self.roster_info.query("(PLAYER_ID in @on_roster_still) & ('G' in POSITION) & (PLAYER_ID not in @injured)").reset_index(drop = 1).PLAYER_ID.tolist()
+            if (injured_pos == 'C'):
+                possible_replacement_player_ids = self.roster_info.query("(PLAYER_ID in @on_roster_still) & ('C' in POSITION) & (PLAYER_ID not in @injured)").reset_index(drop = 1).PLAYER_ID.tolist()
+            if (injured_pos == 'F-C') or (injured_pos == 'C-F'):
+                possible_replacement_player_ids = self.roster_info.query("(PLAYER_ID in @on_roster_still) & ('C' in POSITION | 'F' in POSITION) & (PLAYER_ID not in @injured)").reset_index(drop = 1).PLAYER_ID.tolist()
+            if (injured_pos == 'F'):
+                possible_replacement_player_ids = self.roster_info.query("(PLAYER_ID in @on_roster_still) & ('F' in POSITION) & (PLAYER_ID not in @injured)").reset_index(drop = 1).PLAYER_ID.tolist()
+            else:
+                possible_replacement_player_ids = self.roster_info.query("(PLAYER_ID in @on_roster_still) & (PLAYER_ID not in @injured)").reset_index(drop = 1).PLAYER_ID.tolist()
             replacement_df = self.reweight_replacements_for_missing_player(possible_replacement_player_ids = possible_replacement_player_ids, 
                                                                            remove_injured = remove_injured, injured_player_id = injured_player_id)
             replaced_player_ids = replacement_df.PLAYER_ID.tolist()
             remove_injured = pd.concat([remove_injured.query("PLAYER_ID not in @replaced_player_ids"), replacement_df])
-        remove_injured = pd.DataFrame(remove_injured.sum(axis = 0, numeric_only=True)).T
-        return remove_injured.drop(["MIN_mean", "TeamID", "TEAM_ID", "PLAYER_ID"], axis = 1)
-            
-
-    def get_injury_adjusted_features(self, game_id):
-        """Return summary statistics for team under same injury conditions."""
+        return remove_injured.drop(["TEAM_ID", "PLUS_MINUS_mean"], axis = 1)
+    
+    def get_regular_season_summary_stats_unadjusted(self, team_id):
+        """Get team regular season summary statistics for all teams."""
+        on_roster_still = self.get_team_rosters_from_regular_season()[team_id]
+        players_summary = self.regular_boxes_summary.query("(PLAYER_ID in @on_roster_still) & (TEAM_ID == @team_id)")
+        return players_summary.drop(["TEAM_ID", "PLUS_MINUS_mean"], axis = 1)
+    
+    def get_home_win_percentage(self, team_id):
+        """Get home win percentage for team"""
+        return self.game_data.query("TEAM_ID_H == @team_id").OUTCOME.mean()
+    
+    def get_away_win_percentage(self, team_id):
+        """Get away win percentage for team"""
+        return 1 - self.game_data.query("TEAM_ID_A == @team_id").OUTCOME.mean()
+        
+    def get_features_for_game(self, game_id, injury_adjusted : bool, avg_minutes_played_cutoff):
+        """Return summary statistics for team."""
         game = self.playoff_game_data.query("GAME_ID == @game_id")
         if game.empty:
             raise IndexError("Game requested is not a valid playoff game for this year.")
         home_team = game.reset_index(drop = 1).TEAM_ID_H[0]
         away_team = game.reset_index(drop = 1).TEAM_ID_A[0]
-        home_reweighted =self.reweight_stats(team_id = home_team, game_id = game_id).add_suffix('_H')
-        away_reweighted =self.reweight_stats(team_id = away_team, game_id = game_id).add_suffix('_A')
+        if injury_adjusted:
+            home_reweighted =self.reweight_stats(team_id = home_team, game_id = game_id, avg_minutes_played_cutoff = avg_minutes_played_cutoff).query("MIN_mean >= @avg_minutes_played_cutoff").drop(["MIN_mean", "PLAYER_ID"], axis =1).add_suffix('_H').rename(columns=lambda x: x.replace('_mean', ''))
+            depth_at_cutoff = home_reweighted.shape[0]
+            home_reweighted = home_reweighted.agg(['mean', 'sum', 'median', 'max', 'min']).stack().to_frame().T
+            home_reweighted.columns = ['_'.join(map(str, c)) for c in home_reweighted.columns]
+            home_reweighted['depth_at_cutoff_H'] = depth_at_cutoff
+            home_reweighted['home_win_percentage'] = self.get_home_win_percentage(away_team)
+            away_reweighted =self.reweight_stats(team_id = away_team, game_id = game_id, avg_minutes_played_cutoff = avg_minutes_played_cutoff).query("MIN_mean >= @avg_minutes_played_cutoff").drop(["MIN_mean", "PLAYER_ID"], axis =1).add_suffix('_A').rename(columns=lambda x: x.replace('_mean', ''))
+            depth_at_cutoff = away_reweighted.shape[0]
+            away_reweighted = away_reweighted.agg(['mean', 'sum', 'median', 'max', 'min']).stack().to_frame().T
+            away_reweighted.columns = ['_'.join(map(str, c)) for c in away_reweighted.columns]
+            away_reweighted['depth_at_cutoff_A'] = depth_at_cutoff
+            away_reweighted['road_win_percentage'] = self.get_away_win_percentage(away_team)
+        else:
+            home_reweighted =self.get_regular_season_summary_stats_unadjusted(team_id = home_team).query("MIN_mean >= @avg_minutes_played_cutoff").drop(["MIN_mean", "PLAYER_ID"], axis =1).add_suffix('_H').rename(columns=lambda x: x.replace('_mean', ''))
+            depth_at_cutoff = home_reweighted.shape[0]
+            home_reweighted = home_reweighted.agg(['mean', 'sum', 'median', 'max', 'min']).stack().to_frame().T
+            home_reweighted.columns = ['_'.join(map(str, c)) for c in home_reweighted.columns]
+            home_reweighted['depth_at_cutoff_H'] = depth_at_cutoff
+            home_reweighted['home_win_percentage'] = self.get_home_win_percentage(away_team)
+            away_reweighted =self.get_regular_season_summary_stats_unadjusted(team_id = away_team).query("MIN_mean >= @avg_minutes_played_cutoff").drop(["MIN_mean", "PLAYER_ID"], axis =1).add_suffix('_A').rename(columns=lambda x: x.replace('_mean', ''))
+            depth_at_cutoff = away_reweighted.shape[0]
+            away_reweighted = away_reweighted.agg(['mean', 'sum', 'median', 'max', 'min']).stack().to_frame().T
+            away_reweighted.columns = ['_'.join(map(str, c)) for c in away_reweighted.columns]
+            away_reweighted['depth_at_cutoff_A'] = depth_at_cutoff
+            away_reweighted['road_win_percentage'] = self.get_away_win_percentage(away_team)
         adjusted_df = pd.concat([home_reweighted, away_reweighted], axis = 1)
         return adjusted_df
 
-    def get_train_for_all_playoff_games(self):
+    def get_train_for_all_playoff_games(self, injury_adjusted : bool, avg_minutes_played_cutoff : int):
         """Return dataframe of all adjusted features and game outcomes for this year."""
         features = []
         for _, row in self.playoff_game_data.iterrows():
-            feature = self.get_injury_adjusted_features(game_id = row.GAME_ID)
-            feature.HOME_WIN = row.OUTCOME
+            feature = self.get_features_for_game(game_id = row.GAME_ID, injury_adjusted = injury_adjusted, avg_minutes_played_cutoff = avg_minutes_played_cutoff)
+            feature['HOME_WIN'] = row.OUTCOME
             features.append(feature)
         return pd.concat(features)
+    
+class training_dataset:
+    def __init__(self):
+        self.training_sets_cache = dict()
+        self.years_cache = dict()
+        print(f"Loading NBA data from 2000 until {datetime.datetime.now().year - 2}...")
+        self.load_year_data()
+
+    def get_training_dataset(self, injury_adjusted : bool, avg_minutes_played_cutoff : int, force_update : bool):
+        settings_string = f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}"
+        if (force_update == True) or (self.training_sets_cache.get(2000).get(settings_string).empty):
+            self.load_train_data()
+        all_train = []
+        for year, training in self.years_cache.items():
+            all_train.append(training)
+        return pd.concat(all_train)
+
+    def year(self, year_id):
+        """Get year object."""
+        return years_cache.get(year_id)
+
+    def load_year_data(self):
+        """Load all year classes."""
+        for year_get in range(2000, datetime.datetime.now().year - 2):
+            self.years_cache.update({year_get : year(year_get)})
+    
+    def load_train_data(self, injury_adjusted : bool, avg_minutes_played_cutoff : int) -> None:
+        """Load training and outcomes for all years."""
+        print(f"Loading training data for years from from 2000 until {datetime.datetime.now().year - 2}...")
+        for year_load in range(2000, datetime.datetime.now().year - 2):
+            print(f"---->Loading training for {year_load}...")
+            training = self.year(year_load).get_train_for_all_playoff_games(injury_adjusted=injury_adjusted, avg_minutes_played_cutoff=avg_minutes_played_cutoff)
+            self.training_sets_cache.update( {year_load : 
+                                              {f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}" : training} })
