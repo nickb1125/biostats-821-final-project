@@ -174,34 +174,28 @@ class year:
             print(
                 "---->Loading regular season game data for this year for the first time..."
             )
-            try:
-                all_games = (
-                    endpoints.leaguegamefinder.LeagueGameFinder(
-                        season_type_nullable=SeasonType.regular,
-                        season_nullable=self.season,
-                    )
-                    .get_data_frames()[0]
-                    .query("TEAM_ID in @nba_team_ids")
+            all_games = (
+                endpoints.leaguegamefinder.LeagueGameFinder(
+                    season_type_nullable=SeasonType.regular, season_nullable=self.season
                 )
-            except HTTPSConnectionPool:
-                raise HTTPSConnectionPool("NBA API Timeout. Try again later.")
+                .get_data_frames()[0]
+                .query("TEAM_ID in @nba_team_ids")
+            )
+            time.sleep(1)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_game_data
             > datetime.timedelta(seconds=3600)
         ):
             print("Updating resular season game data.")
-            try:
-                all_games = (
-                    endpoints.leaguegamefinder.LeagueGameFinder(
-                        season_type_nullable=SeasonType.regular,
-                        season_nullable=self.season,
-                    )
-                    .get_data_frames()[0]
-                    .query("TEAM_ID in @nba_team_ids")
+            all_games = (
+                endpoints.leaguegamefinder.LeagueGameFinder(
+                    season_type_nullable=SeasonType.regular, season_nullable=self.season
                 )
-            except HTTPSConnectionPool:
-                raise HTTPSConnectionPool("NBA API Timeout. Try again later.")
+                .get_data_frames()[0]
+                .query("TEAM_ID in @nba_team_ids")
+            )
             self.update_timestamp_game_data = datetime.datetime.now()
+            time.sleep(1)
         else:
             return self.game_data_cache
         all_games["HOME_AWAY"] = [
@@ -259,34 +253,28 @@ class year:
             print(
                 "---->Loading regular season player box data for this year for the first time..."
             )
-            try:
-                self.regular_boxes_cache = (
-                    endpoints.PlayerGameLogs(
-                        season_type_nullable=SeasonType.regular,
-                        season_nullable=self.season,
-                    )
-                    .get_data_frames()[0]
-                    .query("TEAM_ID in @nba_team_ids")
+            self.regular_boxes_cache = (
+                endpoints.PlayerGameLogs(
+                    season_type_nullable=SeasonType.regular, season_nullable=self.season
                 )
-            except HTTPSConnectionPool:
-                raise HTTPSConnectionPool("NBA API Timeout. Try again later.")
+                .get_data_frames()[0]
+                .query("TEAM_ID in @nba_team_ids")
+            )
+            time.sleep(1)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_regular_boxes
             > datetime.timedelta(seconds=3600)
         ):
             print("---->Updating regular season box data...")
-            try:
-                self.regular_boxes_cache = (
-                    endpoints.PlayerGameLogs(
-                        season_type_nullable=SeasonType.regular,
-                        season_nullable=self.season,
-                    )
-                    .get_data_frames()[0]
-                    .query("TEAM_ID in @nba_team_ids")
+            self.regular_boxes_cache = (
+                endpoints.PlayerGameLogs(
+                    season_type_nullable=SeasonType.regular, season_nullable=self.season
                 )
-            except HTTPSConnectionPool:
-                raise HTTPSConnectionPool("NBA API Timeout. Try again later.")
+                .get_data_frames()[0]
+                .query("TEAM_ID in @nba_team_ids")
+            )
             self.update_timestamp_regular_boxes = datetime.datetime.now()
+            time.sleep(1)
         return self.regular_boxes_cache
 
     @property
@@ -337,34 +325,30 @@ class year:
         """Set playoff game data in object cache in wide format."""
         if self.playoff_game_data_cache.shape[0] == 0:
             print("---->Loading playoff game data for this year for the first time...")
-            try:
-                all_games = (
-                    endpoints.leaguegamefinder.LeagueGameFinder(
-                        season_type_nullable=SeasonTypePlayoffs.playoffs,
-                        season_nullable=self.season,
-                    )
-                    .get_data_frames()[0]
-                    .query("TEAM_ID in @nba_team_ids")
+            all_games = (
+                endpoints.leaguegamefinder.LeagueGameFinder(
+                    season_type_nullable=SeasonTypePlayoffs.playoffs,
+                    season_nullable=self.season,
                 )
-            except HTTPSConnectionPool:
-                raise HTTPSConnectionPool("NBA API Timeout. Try again later.")
+                .get_data_frames()[0]
+                .query("TEAM_ID in @nba_team_ids")
+            )
+            time.sleep(1)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_playoff_game_data
             > datetime.timedelta(seconds=3600)
         ):
             print("Updating playoff game data.")
-            try:
-                all_games = (
-                    endpoints.leaguegamefinder.LeagueGameFinder(
-                        season_type_nullable=SeasonTypePlayoffs.playoffs,
-                        season_nullable=self.season,
-                    )
-                    .get_data_frames()[0]
-                    .query("TEAM_ID in @nba_team_ids")
+            all_games = (
+                endpoints.leaguegamefinder.LeagueGameFinder(
+                    season_type_nullable=SeasonTypePlayoffs.playoffs,
+                    season_nullable=self.season,
                 )
-            except HTTPSConnectionPool:
-                raise HTTPSConnectionPool("NBA API Timeout. Try again later.")
+                .get_data_frames()[0]
+                .query("TEAM_ID in @nba_team_ids")
+            )
             self.update_timestamp_playoff_game_data = datetime.datetime.now()
+            time.sleep(1)
         else:
             return self.playoff_game_data_cache
         all_games["HOME_AWAY"] = [
@@ -422,34 +406,30 @@ class year:
             print(
                 "---->Loading playoff player box data for this year for the first time..."
             )
-            try:
-                post_boxes = (
-                    endpoints.PlayerGameLogs(
-                        season_type_nullable=SeasonTypePlayoffs.playoffs,
-                        season_nullable=self.season,
-                    )
-                    .get_data_frames()[0]
-                    .query("TEAM_ID in @nba_team_ids")
+            post_boxes = (
+                endpoints.PlayerGameLogs(
+                    season_type_nullable=SeasonTypePlayoffs.playoffs,
+                    season_nullable=self.season,
                 )
-            except HTTPSConnectionPool:
-                raise HTTPSConnectionPool("NBA API Timeout. Try again later.")
+                .get_data_frames()[0]
+                .query("TEAM_ID in @nba_team_ids")
+            )
+            time.sleep(1)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_playoff_boxes
             > datetime.timedelta(seconds=3600)
         ):
             print("---->Updating playoff box season game data.")
-            try:
-                post_boxes = (
-                    endpoints.PlayerGameLogs(
-                        season_type_nullable=SeasonTypePlayoffs.playoffs,
-                        season_nullable=self.season,
-                    )
-                    .get_data_frames()[0]
-                    .query("TEAM_ID in @nba_team_ids")
+            post_boxes = (
+                endpoints.PlayerGameLogs(
+                    season_type_nullable=SeasonTypePlayoffs.playoffs,
+                    season_nullable=self.season,
                 )
-            except HTTPSConnectionPool:
-                raise HTTPSConnectionPool("NBA API Timeout. Try again later.")
+                .get_data_frames()[0]
+                .query("TEAM_ID in @nba_team_ids")
+            )
             self.update_timestamp_playoff_boxes = datetime.datetime.now()
+            time.sleep(1)
         else:
             return self.playoff_boxes_cache
         playoff_boxes_cache = post_boxes[
@@ -897,8 +877,8 @@ class training_dataset:
                 avg_minutes_played_cutoff=avg_minutes_played_cutoff,
             )
         all_train = []
-        for year, year_class in self.years_cache.items():
-            all_train.append(year_class.get(year).get(settings_string))
+        for year, settings_dict in self.training_sets_cache.items():
+            all_train.append(settings_dict.get(settings_string))
         return pd.concat(all_train)
 
     def year(self, year_id):
@@ -915,10 +895,12 @@ class training_dataset:
     ) -> None:
         """Load training and outcomes for all years."""
         print(
-            f"Loading training data for years from from 2000 until {datetime.datetime.now().year - 2}..."
+            f"Loading training data for years from from {self.since} until {datetime.datetime.now().year - 2}..."
         )
         for year_load in range(self.since, datetime.datetime.now().year - 2):
-            print(f"---->Loading training for {year_load}...")
+            print(
+                f"---->Loading training for {year_load} with injury_adjustments = {injury_adjusted} and avg_minutes_played_cutoff = {avg_minutes_played_cutoff}..."
+            )
             training = self.year(year_load).get_train_for_all_playoff_games(
                 injury_adjusted=injury_adjusted,
                 avg_minutes_played_cutoff=avg_minutes_played_cutoff,
