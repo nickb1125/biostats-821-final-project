@@ -160,7 +160,7 @@ class year:
                     team_id=team_id, season=self.season
                 ).get_data_frames()[0]
                 all_players.append(roster)
-                time.sleep(1)
+                time.sleep(2)
             all_players = pd.concat(all_players)
             self.roster_info_cache = all_players[
                 ["TeamID", "PLAYER_ID", "POSITION"]
@@ -181,7 +181,7 @@ class year:
                 .get_data_frames()[0]
                 .query("TEAM_ID in @nba_team_ids")
             )
-            time.sleep(1)
+            time.sleep(2)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_game_data
             > datetime.timedelta(seconds=3600)
@@ -195,7 +195,7 @@ class year:
                 .query("TEAM_ID in @nba_team_ids")
             )
             self.update_timestamp_game_data = datetime.datetime.now()
-            time.sleep(1)
+            time.sleep(2)
         else:
             return self.game_data_cache
         all_games["HOME_AWAY"] = [
@@ -260,7 +260,7 @@ class year:
                 .get_data_frames()[0]
                 .query("TEAM_ID in @nba_team_ids")
             )
-            time.sleep(1)
+            time.sleep(2)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_regular_boxes
             > datetime.timedelta(seconds=3600)
@@ -274,7 +274,7 @@ class year:
                 .query("TEAM_ID in @nba_team_ids")
             )
             self.update_timestamp_regular_boxes = datetime.datetime.now()
-            time.sleep(1)
+            time.sleep(2)
         return self.regular_boxes_cache
 
     @property
@@ -333,7 +333,7 @@ class year:
                 .get_data_frames()[0]
                 .query("TEAM_ID in @nba_team_ids")
             )
-            time.sleep(1)
+            time.sleep(2)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_playoff_game_data
             > datetime.timedelta(seconds=3600)
@@ -348,7 +348,7 @@ class year:
                 .query("TEAM_ID in @nba_team_ids")
             )
             self.update_timestamp_playoff_game_data = datetime.datetime.now()
-            time.sleep(1)
+            time.sleep(2)
         else:
             return self.playoff_game_data_cache
         all_games["HOME_AWAY"] = [
@@ -414,7 +414,7 @@ class year:
                 .get_data_frames()[0]
                 .query("TEAM_ID in @nba_team_ids")
             )
-            time.sleep(1)
+            time.sleep(2)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_playoff_boxes
             > datetime.timedelta(seconds=3600)
@@ -429,7 +429,7 @@ class year:
                 .query("TEAM_ID in @nba_team_ids")
             )
             self.update_timestamp_playoff_boxes = datetime.datetime.now()
-            time.sleep(1)
+            time.sleep(2)
         else:
             return self.playoff_boxes_cache
         playoff_boxes_cache = post_boxes[
@@ -541,7 +541,9 @@ class year:
         max_minutes = (
             min_diff.copy()
         )  # set max minutes to number of minutes adjusted player was playing and incriment up if needed
-        while (min_diff > 0) & (max_minutes <= 40):
+        if min_diff <= 0:
+            return pd.DataFrame(columns=["PLAYER_ID"])
+        while (min_diff > 0) & (max_minutes <= 48):
             replacement_df = []
             for index, row in possile_replacement_box_summary.iterrows():
                 if (min_diff > 0) & (row.MIN_mean < max_minutes):
@@ -582,7 +584,7 @@ class year:
             max_minutes += 1
         replacement_df = pd.concat(replacement_df)
         if min_diff > 0:
-            raise UserWarning(
+            raise KeyError(
                 f"Warning: Not enough eligible players on bench to account for all injuries with full 40 minutes of play for injury_id {injured_player_id}."
             )
         return replacement_df
@@ -666,11 +668,25 @@ class year:
                     .reset_index(drop=1)
                     .PLAYER_ID.tolist()
                 )
-            replacement_df = self.reweight_replacements_for_missing_player(
-                possible_replacement_player_ids=possible_replacement_player_ids,
-                remove_injured=remove_injured,
-                injured_player_id=injured_player_id,
-            )
+            try:
+                replacement_df = self.reweight_replacements_for_missing_player(
+                    possible_replacement_player_ids=possible_replacement_player_ids,
+                    remove_injured=remove_injured,
+                    injured_player_id=injured_player_id,
+                )
+            except KeyError:
+                possible_replacement_player_ids = (
+                    self.roster_info.query(
+                        "(PLAYER_ID in @on_roster_still) & (PLAYER_ID not in @injured)"
+                    )
+                    .reset_index(drop=1)
+                    .PLAYER_ID.tolist()
+                )
+                replacement_df = self.reweight_replacements_for_missing_player(
+                    possible_replacement_player_ids=possible_replacement_player_ids,
+                    remove_injured=remove_injured,
+                    injured_player_id=injured_player_id,
+                )
             replaced_player_ids = replacement_df.PLAYER_ID.tolist()
             remove_injured = pd.concat(
                 [
@@ -888,7 +904,12 @@ class training_dataset:
     def load_year_data(self):
         """Load all year classes."""
         for year_get in range(self.since, datetime.datetime.now().year - 2):
-            self.years_cache.update({year_get: year(year_get)})
+            try:
+                self.years_cache.update({year_get: year(year_get)})
+            except:
+                print("Timeout occured. Try one more time.")
+                time.sleep(60)
+                self.years_cache.update({year_get: year(year_get)})
 
     def load_train_data(
         self, injury_adjusted: bool, avg_minutes_played_cutoff: int
