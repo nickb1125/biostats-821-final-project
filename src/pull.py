@@ -529,6 +529,8 @@ class year:
         self, possible_replacement_player_ids, remove_injured, injured_player_id
     ):
         """Reweights replacement players for ONE missing player"""
+        if len(possible_replacement_player_ids) == 0:
+            raise KeyError("No valid replacements.")
         team_id = remove_injured.reset_index(drop=1).TEAM_ID[0]
         possile_replacement_box_summary = self.regular_boxes_summary.query(
             "(PLAYER_ID in @possible_replacement_player_ids) & (TEAM_ID == @team_id)"
@@ -600,9 +602,10 @@ class year:
         else:
             injured = self.sit_or_injured_playoff[team_id][game_id]
         on_roster_still = self.get_team_rosters_from_regular_season()[team_id]
+        # Only considered injury needing replacement if average minutes is greater than 20
         injured = (
             self.regular_boxes_summary.query(
-                "(TEAM_ID == @team_id) & (PLAYER_ID in @injured) & (MIN_mean > @avg_minutes_played_cutoff) & (PLAYER_ID in @on_roster_still)"
+                "(TEAM_ID == @team_id) & (PLAYER_ID in @injured) & (MIN_mean > 20) & (PLAYER_ID in @on_roster_still)"
             )
             .reset_index(drop=1)
             .PLAYER_ID.tolist()
@@ -674,7 +677,7 @@ class year:
                     remove_injured=remove_injured,
                     injured_player_id=injured_player_id,
                 )
-            except KeyError:
+            except KeyError:  # if none left in position move to other positions
                 possible_replacement_player_ids = (
                     self.roster_info.query(
                         "(PLAYER_ID in @on_roster_still) & (PLAYER_ID not in @injured)"
@@ -734,10 +737,7 @@ class year:
             )
             depth_at_cutoff = home_reweighted.shape[0]
             home_reweighted = (
-                home_reweighted.agg(["mean", "sum", "median", "max", "min"])
-                .stack()
-                .to_frame()
-                .T
+                home_reweighted.agg(["mean", "median", "max"]).stack().to_frame().T
             )
             home_reweighted.columns = [
                 "_".join(map(str, c)) for c in home_reweighted.columns
@@ -759,10 +759,7 @@ class year:
             )
             depth_at_cutoff = away_reweighted.shape[0]
             away_reweighted = (
-                away_reweighted.agg(["mean", "sum", "median", "max", "min"])
-                .stack()
-                .to_frame()
-                .T
+                away_reweighted.agg(["mean", "median", "max"]).stack().to_frame().T
             )
             away_reweighted.columns = [
                 "_".join(map(str, c)) for c in away_reweighted.columns
@@ -781,10 +778,7 @@ class year:
             )
             depth_at_cutoff = home_reweighted.shape[0]
             home_reweighted = (
-                home_reweighted.agg(["mean", "sum", "median", "max", "min"])
-                .stack()
-                .to_frame()
-                .T
+                home_reweighted.agg(["mean", "median", "max"]).stack().to_frame().T
             )
             home_reweighted.columns = [
                 "_".join(map(str, c)) for c in home_reweighted.columns
@@ -802,10 +796,7 @@ class year:
             )
             depth_at_cutoff = away_reweighted.shape[0]
             away_reweighted = (
-                away_reweighted.agg(["mean", "sum", "median", "max", "min"])
-                .stack()
-                .to_frame()
-                .T
+                away_reweighted.agg(["mean", "median", "max"]).stack().to_frame().T
             )
             away_reweighted.columns = [
                 "_".join(map(str, c)) for c in away_reweighted.columns
@@ -926,13 +917,20 @@ class training_dataset:
                 injury_adjusted=injury_adjusted,
                 avg_minutes_played_cutoff=avg_minutes_played_cutoff,
             )
-            self.training_sets_cache.update(
-                {
-                    year_load: {
+            if year_load not in self.training_sets_cache.keys():
+                self.training_sets_cache.update(
+                    {
+                        year_load: {
+                            f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}": training
+                        }
+                    }
+                )
+            else:
+                self.training_sets_cache.get(year_load).update(
+                    {
                         f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}": training
                     }
-                }
-            )
+                )
 
 
 class current_state:
