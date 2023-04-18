@@ -1,3 +1,19 @@
+import nba_api
+import pandas as pd
+import numpy as np
+import time
+import datetime
+import tqdm
+from nba_api.stats.library.parameters import SeasonType
+from nba_api.stats.library.parameters import SeasonTypePlayoffs
+from nba_api.stats.static import teams
+from nba_api.stats import endpoints
+from nba_api.stats.static import players
+import math
+from json import JSONDecodeError
+import requests
+from bs4 import BeautifulSoup
+
 team_id_to_abb = pd.DataFrame(teams.get_teams()).rename(
     columns={"full_name": "TEAM_NAME", "id": "TEAM_ID", "abbreviation": "TEAM_ABB"}
 )
