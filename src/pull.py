@@ -618,10 +618,10 @@ class year:
         else:
             injured = self.sit_or_injured_playoff[team_id][game_id]
         on_roster_still = self.get_team_rosters_from_regular_season()[team_id]
-        # Only considered injury needing replacement if average minutes is greater than 20
+        # Only considered injury needing replacement if average minutes is greater than 30
         injured = (
             self.regular_boxes_summary.query(
-                "(TEAM_ID == @team_id) & (PLAYER_ID in @injured) & (MIN_mean > 20) & (PLAYER_ID in @on_roster_still)"
+                "(TEAM_ID == @team_id) & (PLAYER_ID in @injured) & (MIN_mean > 30) & (PLAYER_ID in @on_roster_still)"
             )
             .reset_index(drop=1)
             .PLAYER_ID.tolist()
