@@ -16,13 +16,11 @@ import os
 
 # Ask if user wants to update model:
 
-if (os.path.exists("data/train_class.pickle")) & (os.path.exists("data/best_playoff_model.pickle")):
-    with open('data/train_class.pickle', 'rb') as handle:
-        train_class = pickle.load(handle)
+if (os.path.exists("data/best_playoff_model.pickle")):
     with open('data/best_playoff_model.pickle', 'rb') as handle:
         best_playoff_model = pickle.load(handle)
     while True:
-        update_model = input(f"---Currently existing model is trained up to {train_class.since} and has a cross validated test AUC of {best_playoff_model.best_score}.--- \n \n---The current model is trained with settings INJURY_ADJUST = {best_playoff_model.injury_adjusted} and AVG_MIN_PLAYED_CUTOFF = {best_playoff_model.avg_minutes_played_cutoff}.--- \n \n---Note that some of the best nba playoff models range in AUC from 0.58 to 0.62 on average.---\n \n-------------->'Yes' OR 'No': DO YOU WANT TO UPDATE THE CURRENTLY TRAINED MODEL? (THIS WILL TAKE MORE THAN 45 MINUTES): ")
+        update_model = input(f"---Currently existing model is trained and has a cross validated test AUC of {best_playoff_model.best_score}.--- \n \n---The current model is trained with settings INJURY_ADJUST = {best_playoff_model.injury_adjusted} and AVG_MIN_PLAYED_CUTOFF = {best_playoff_model.avg_minutes_played_cutoff}.--- \n \n---Note that some of the best nba playoff models range in AUC from 0.58 to 0.62 on average.---\n \n-------------->'Yes' OR 'No': DO YOU WANT TO UPDATE THE CURRENTLY TRAINED MODEL? (THIS WILL TAKE MORE THAN 45 MINUTES): ")
         if update_model == "Yes" or update_model == "No":
             break
         print("Invalid input. Must be 'Yes' or 'No'. Please try again.")
