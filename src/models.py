@@ -7,10 +7,15 @@ import pull
 from pull import training_dataset, year
 import itertools
 import pandas as pd
+import itertools
+import pandas as pd
+import xgboost as xgb
+from sklearn.model_selection import GridSearchCV
+import pickle
 
 # Pull feature data:
 
-train_class = training_dataset(since = 2020) # Feel free to change training year start
+#train_class = training_dataset(since = 2020) # Feel free to change training year start
 
 
 # Load training dataset with linspace of hyperparameters for injury_adjusted and avg_minutes_played_cutoff:
@@ -42,14 +47,16 @@ hyperparamter_space = list(itertools.product(possible_injury_adjusted, possible_
 #with open('train_class.pkl', 'wb') as f:
 #    pickle.dump(train_class, f)
 
+
+# Get train_class from saved pickle object
+#fileObj = open('train_class_test.pkl', 'rb')
+#train_class = pickle.load(fileObj)
+#fileObj.close()
+
 # Create and train the NBA model
-import itertools
-import pandas as pd
-import xgboost as xgb
-from sklearn.model_selection import GridSearchCV
 
 # Pull feature data:
-train_class = training_dataset(since = 2020) # Feel free to change training year start
+#train_class = training_dataset(since = 2020) # Feel free to change training year start
 
 # Define XGBoost model class:
 class XGBoostModel:
@@ -74,9 +81,9 @@ class XGBoostModel:
             cv=2,
             verbose=0
         )
-        X = self.train_set.iloc[:,:-1]
-        y = self.train_set.iloc[:,-1]
-        print(y)
+        y = self.train_set['HOME_WIN']
+        X = self.train_set.drop('HOME_WIN', axis=1)
+
         grid_search.fit(X, y)
         self.model = grid_search.best_estimator_
         self.best_params = grid_search.best_params_
@@ -92,7 +99,7 @@ hyperparameter_space = {
     'gamma': [0, 0.1]
 }
 
-
+print('----->testing single False, 5 test')
 test_xgb_model = XGBoostModel(False, 5)
 test_xgb_model.grid_search(param_grid=hyperparameter_space)
 print(test_xgb_model.best_params)
@@ -100,10 +107,11 @@ print(test_xgb_model.model)
 print(test_xgb_model.best_score)
 
 
+print('----->testing all possible cominations now')
 # Load all possible hyperparameter datasets and perform grid search:
-
 models = []
 for settings in itertools.product(possible_injury_adjusted, possible_avg_minutes_played_cutoff):
+    print(f"--------> Searching for injury adjusted {settings[0]}, minutes cutoff {settings[1]}")
     xgb_model = XGBoostModel(injury_adjusted=settings[0], avg_minutes_played_cutoff=settings[1])
     xgb_model.grid_search(param_grid=hyperparameter_space)
     models.append(xgb_model)
@@ -111,7 +119,7 @@ for settings in itertools.product(possible_injury_adjusted, possible_avg_minutes
     
 # Find model with best cross validated test AUC:
 
-best_model = max(models, key=lambda model: model.model.best_score_)
+best_model = max(models, key=lambda model: model.model.best_score)
 print('Best hyperparameters:', best_model.best_params)
 print('Best score', best_model.best_score)
 print(best_model.injury_adjusted, best_model.avg_minutes_played_cutoff)
