@@ -4,15 +4,15 @@ import numpy as np
 import time
 import datetime
 import tqdm
-from nba_api.stats.library.parameters import SeasonType
-from nba_api.stats.library.parameters import SeasonTypePlayoffs
-from nba_api.stats.static import teams
+from nba_api.stats.library.parameters import SeasonType, SeasonTypePlayoffs
+from nba_api.stats.static import teams, players
 from nba_api.stats import endpoints
-from nba_api.stats.static import players
 import math
-from json import JSONDecodeError
 import requests
 from bs4 import BeautifulSoup
+import pickle
+from random import random, choices
+import itertools
 
 team_id_to_abb = pd.DataFrame(teams.get_teams()).rename(
     columns={"full_name": "TEAM_NAME", "id": "TEAM_ID", "abbreviation": "TEAM_ABB"}
@@ -28,6 +28,16 @@ def team_abb_to_id(team_abb):
         )
     except KeyError:
         raise KeyError(f"User has input non-valid team abbreviation: {team_abb}")
+
+
+def team_id_to_abb_conv(team_id):
+    """Translates team id to abb."""
+    try:
+        return (
+            team_id_to_abb.query("TEAM_ID == @team_id").reset_index(drop=1).TEAM_ABB[0]
+        )
+    except KeyError:
+        raise KeyError(f"User has input non-valid team id: {team_id}")
 
 
 def scrape_current_nba_injuries():
@@ -956,65 +966,351 @@ class current_state:
         else:
             self.year = datetime.datetime.now().year
         self.created_on = datetime.datetime.now()
-        self.year_class = dict()
-        self.injury_adjusted = True  # FIX THIS WHEN WILL TRAINS MODEL HYPTERPARAMTER
-        self.avg_minutes_played_cutoff = (
-            20  # FIX THIS WHEN WILL TRAINS MODEL HYPTERPARAMTER
+        self.year_class = {}
+        with open("data/best_playoff_model.pickle", "rb") as handle:
+            self.model = pickle.load(handle)
+        loader_year_class = self.get_current_year_class
+        self.script = {
+            "R1": [
+                ("1_EAST", "8_EAST"),
+                ("2_EAST", "7_EAST"),
+                ("3_EAST", "6_EAST"),
+                ("4_EAST", "5_EAST"),
+                ("1_WEST", "8_WEST"),
+                ("2_WEST", "7_WEST"),
+                ("3_WEST", "6_WEST"),
+                ("4_WEST", "5_WEST"),
+            ],
+            "R2": [
+                ("1_EAST_8_EAST", "4_EAST_5_EAST"),
+                ("2_EAST_7_EAST", "3_EAST_6_EAST"),
+                ("1_WEST_8_WEST", "4_WEST_5_WEST"),
+                ("2_WEST_7_WEST", "3_WEST_6_WEST"),
+            ],
+            "R3": [
+                ("1_EAST_8_EAST_4_EAST_5_EAST", "2_EAST_7_EAST_3_EAST_6_EAST"),
+                ("1_WEST_8_WEST_4_WEST_5_WEST", "2_WEST_7_WEST_3_WEST_6_WEST"),
+            ],
+            "R4": [
+                (
+                    "1_EAST_8_EAST_4_EAST_5_EAST_2_EAST_7_EAST_3_EAST_6_EAST",
+                    "1_WEST_8_WEST_4_WEST_5_WEST_2_WEST_7_WEST_3_WEST_6_WEST",
+                )
+            ],
+        }
+
+    def print_current_team_injuries(self, team_id):
+        """Prints current team injuries"""
+        all_injuries = scrape_current_nba_injuries()
+        this_year = self.get_current_year_class.get("current")
+        players_this_team = (
+            this_year.roster_info.query("TEAM_ID == @team_id")
+            .reset_index(drop=1)
+            .PLAYER_ID
         )
-        self.model = "INSERT MODEL HERE"
+        injured_players = (
+            all_injuries.query("PLAYER_ID in @players_this_team")
+            .reset_index(drop=1)
+            .PLAYER_NAME.tolist()
+        )
+        return injured_players
+
+    def get_current_tourney_state(self):
+        seeds = self.get_playoff_picture_liklihood()
+        seeds["SEED"] = seeds["SEED"].astype(str) + "_" + seeds["REGION"]
+        this_year = self.year_class.get("current")
+        games_thus_far = this_year.playoff_game_data[
+            ["TEAM_ABBREVIATION_H", "TEAM_ABBREVIATION_A", "OUTCOME"]
+        ].copy()
+        seeds["TEAM_ABB"] = [team_id_to_abb_conv(team_id) for team_id in seeds.TEAM_ID]
+        seeds = seeds.drop(["TEAM_ID", "REGION"], axis=1)
+        games_thus_far = (
+            games_thus_far.merge(
+                seeds, left_on="TEAM_ABBREVIATION_H", right_on="TEAM_ABB"
+            )
+            .rename(columns={"SEED": "SEED_H"})
+            .drop(["TEAM_ABB"], axis=1)
+            .merge(seeds, left_on="TEAM_ABBREVIATION_A", right_on="TEAM_ABB")
+            .rename(columns={"SEED": "SEED_A"})
+            .drop(["TEAM_ABB"], axis=1)
+            .copy()
+        )
+        games_thus_far["WINNER"] = [
+            row.TEAM_ABBREVIATION_H if row.OUTCOME == 1 else row.TEAM_ABBREVIATION_A
+            for _, row in games_thus_far.iterrows()
+        ]
+        got_this_far = True
+        current_round_state = {
+            "R0": {row.SEED: {row.TEAM_ABB: row.PROB} for _, row in seeds.iterrows()}
+        }
+        for round in ["R1", "R2", "R3", "R4"]:
+            matchups = self.script[round]
+            current_round_state.update({round: dict()})
+            for matchup in matchups:
+                games_in_this_matchup = games_thus_far.query(
+                    "(SEED_H == @matchup[0] & SEED_A == @matchup[1]) or (SEED_H == @matchup[1] & SEED_A == @matchup[0])"
+                )
+                matchup_status = dict(games_in_this_matchup.WINNER.value_counts())
+                for team in [
+                    games_in_this_matchup.TEAM_ABBREVIATION_A.unique()[0],
+                    games_in_this_matchup.TEAM_ABBREVIATION_H.unique()[0],
+                ]:
+                    if team not in matchup_status.keys():
+                        matchup_status.update({team: 0})
+                current_round_state[round].update(
+                    {f"{matchup[0]}_{matchup[1]}": matchup_status}
+                )
+                finished = False
+                for key, value in matchup_status.items():
+                    if value == 4:
+                        finished = True
+                        new_seed = pd.DataFrame(
+                            {"Seed": [matchup[0] + "_" + matchup[1]], "TEAM_ABB": [key]}
+                        )
+                        seeds = pd.concat([seeds, new_seed])
+                if not finished:
+                    got_this_far = False
+            if not got_this_far:
+                break
+        current_round_state
+
+    def get_playoff_picture_liklihood(self):
+        playoff_proj = scrape_nba_playoff_projections()
+        west = playoff_proj["West"]
+        east = playoff_proj["East"]
+        seed_columns = [
+            "1_SEED_PROB",
+            "2_SEED_PROB",
+            "3_SEED_PROB",
+            "4_SEED_PROB",
+            "5_SEED_PROB",
+            "6_SEED_PROB",
+            "7_SEED_PROB",
+            "8_SEED_PROB",
+        ]
+        west[seed_columns] = west[seed_columns].applymap(float)
+        east[seed_columns] = east[seed_columns].applymap(float)
+        max_seed_df = []
+        for seed in range(1, 9):
+            seed_col = f"{seed}_SEED_PROB"
+            max_team_name = west.loc[
+                west[seed_col].idxmax(), ["TEAM_ID", f"{seed}_SEED_PROB"]
+            ]
+            max_for_row = pd.DataFrame(
+                {
+                    "REGION": "WEST",
+                    "TEAM_ID": [max_team_name.TEAM_ID],
+                    "SEED": [seed],
+                    "PROB": [max_team_name[f"{seed}_SEED_PROB"]],
+                }
+            )
+            max_seed_df.append(max_for_row)
+        for seed in range(1, 9):
+            seed_col = f"{seed}_SEED_PROB"
+            max_team_name = east.loc[
+                east[seed_col].idxmax(), ["TEAM_ID", f"{seed}_SEED_PROB"]
+            ]
+            max_for_row = pd.DataFrame(
+                {
+                    "REGION": "EAST",
+                    "TEAM_ID": [max_team_name.TEAM_ID],
+                    "SEED": [seed],
+                    "PROB": [max_team_name[f"{seed}_SEED_PROB"]],
+                }
+            )
+            max_seed_df.append(max_for_row)
+        return pd.concat(max_seed_df)
 
     @property
     def get_current_year_class(self):
-        if len(self.year_cache.keys()) == 0:
-            self.year_class = year(self.year)
-        return self.year_cache
+        if len(self.year_class.keys()) == 0:
+            self.year_class.update({"current": year(self.year)})
+        return self.year_class
 
-    def predict_matchup(self, model, home_abb, away_abb):
+    def predict_matchup(self, home_abb, away_abb):
         """Predicts upcoming matchup."""
-        features = self.year_cache.get("current").get_features_for_upcoming(
-            home_team=home_abb,
-            away_team=away_abb,
-            injury_adjusted=self.injury_adjusted,
-            avg_minutes_played_cutoff=self.avg_minutes_played_cutoff,
+        home_id, away_id = team_abb_to_id(home_abb), team_abb_to_id(away_abb)
+        features = self.year_class.get("current").get_features_for_upcoming(
+            home_team=home_id,
+            away_team=away_id,
+            injury_adjusted=self.model.injury_adjusted,
+            avg_minutes_played_cutoff=self.model.avg_minutes_played_cutoff,
         )
-        prob = self.model.predict_proba(features)
-        return prob[1]  # Return home win probability
+        prob = self.model.model.predict_proba(features)
+        return prob[0][1]  # Return home win probabilities
 
-    def predict_playoff_picture(self):
-        """Return table of probabilities for each playoff round for each team."""
+    def predict_series(self, higher_seed_abb, lower_seed_abb, for_simulation=False):
+        """Get probabilities of each team winning in games 4-7 of the series."""
+        prob_when_higher_seed_home = self.predict_matchup(
+            home_abb=higher_seed_abb, away_abb=lower_seed_abb
+        )
+        prob_when_lower_seed_home = self.predict_matchup(
+            home_abb=lower_seed_abb, away_abb=higher_seed_abb
+        )
+        if not for_simulation:
+            higher_id, lower_id = team_abb_to_id(higher_seed_abb), team_abb_to_id(
+                lower_seed_abb
+            )
+            print("Accounting for the following injuries...")
+            print(
+                f"Currently injured for {higher_seed_abb}: {self.print_current_team_injuries(higher_id)}"
+            )
+            print(
+                f"Currently injured for {lower_seed_abb}: {self.print_current_team_injuries(lower_id)}"
+            )
+        prob_higher_wins_each_game = (
+            prob_when_higher_seed_home,
+            prob_when_higher_seed_home,
+            prob_when_lower_seed_home,
+            prob_when_lower_seed_home,
+            prob_when_higher_seed_home,
+            prob_when_lower_seed_home,
+            prob_when_higher_seed_home,
+        )
+        # Get possible sample space
+        sample_space_previously_over = []
+        for game in [4, 5, 6, 7]:
+            sample_space = list(itertools.product([0, 1], repeat=game))
+            sample_space_without_previously_over = [
+                outcome
+                for outcome in sample_space
+                if (outcome[: game - 1] not in sample_space_previously_over)
+            ]
+            ended_this_round = [
+                outcome
+                for outcome in sample_space_without_previously_over
+                if ((outcome.count(1) == 4) and (outcome[-1] == 1))
+                or ((outcome.count(0) == 4) and (outcome[-1] == 0))
+            ]
+            sample_space_previously_over.extend(ended_this_round)
+        outcomes = {higher_seed_abb: dict(), lower_seed_abb: dict()}
+        for outcome in sample_space_previously_over:
+            num_games = len(outcome)
+            higher_win_prob_list = prob_higher_wins_each_game[:num_games]
+            prob_of_what_occured = np.product(
+                list(
+                    map(
+                        lambda x, y: 1 - y if x == 0 else y,
+                        outcome,
+                        higher_win_prob_list,
+                    )
+                ),
+                dtype=np.float64,
+            )
+            if outcome.count(1) == 4:
+                if num_games in outcomes[higher_seed_abb].keys():
+                    outcomes[higher_seed_abb][num_games].append(prob_of_what_occured)
+                else:
+                    outcomes[higher_seed_abb].update(
+                        {num_games: [prob_of_what_occured]}
+                    )
+            elif outcome.count(0) == 4:
+                if num_games in outcomes[lower_seed_abb].keys():
+                    outcomes[lower_seed_abb][num_games].append(prob_of_what_occured)
+                else:
+                    outcomes[lower_seed_abb].update({num_games: [prob_of_what_occured]})
+            else:
+                raise KeyError("Proper number of wins was not obtained for either team")
+        total_prob_higher, total_prob_lower = 0, 0
+        for team_abb, value in outcomes.items():
+            for inner_key, inner_value in value.items():
+                prob = np.sum(inner_value)
+                outcomes[team_abb][inner_key] = prob
+                if not for_simulation:
+                    print(
+                        f"        {team_abb} wins in {inner_key}: {round(prob*100, 2)}%"
+                    )
+                if team_abb == higher_seed_abb:
+                    total_prob_higher += prob
+                else:
+                    total_prob_lower += prob
+        if not for_simulation:
+            print("__________Total Probabilities__________")
+            print(
+                f"        {higher_seed_abb} wins series: {round(total_prob_higher*100, 2)}%"
+            )
+            print(
+                f"        {lower_seed_abb} wins series: {round(total_prob_lower*100, 2)}%"
+            )
+        if for_simulation:
+            return outcomes
+
+    def simulate_series(self, higher_seed_abb, lower_seed_abb):
+        probs = self.predict_series(
+            higher_seed_abb=higher_seed_abb,
+            lower_seed_abb=lower_seed_abb,
+            for_simulation=True,
+        )
+        team = choices(
+            list(probs.keys()),
+            weights=[sum(probs["BOS"].values()), sum(probs["ATL"].values())],
+        )[0]
+        number = choices(list(probs[team].keys()), weights=list(probs[team].values()))[
+            0
+        ]
+        print(f"{team} wins in game {number}.")
+        return {"Winner": team, "Game": number}
+
+    def get_what_has_happened(self, for_simulation=True):
+        print("_________Up to this point_________")
+        max_round_done = max([int(key[1]) for key in current_round_state.keys()])
+        for key, value in current_round_state.items():
+            if key == "R0":
+                print(f"-----> Pre-playoffs")
+                for seed, dict in value.items():
+                    for team, prob in dict.items():
+                        print(
+                            f"{team} secures {seed[0]} seed in the {seed[2:]} with probability {prob}"
+                        )
+            else:
+                print(f"-----> Round {key[1]}")
+                for matchup, dict in value.items():
+                    matchup_object = [
+                        (item, number_won) for item, number_won in dict.items()
+                    ]
+                    if max_round_done == int(key[1]):
+                        print(
+                            f"{matchup_object[0][0]} vs. {matchup_object[1][0]} series is {matchup_object[0][1]}-{matchup_object[1][1]}"
+                        )
+                    else:
+                        print(
+                            f"{matchup_object[0][0]} vs. {matchup_object[1][0]} series ended {matchup_object[0][1]}-{matchup_object[1][1]}"
+                        )
+        # to do: finish this function (use max_round_done_strategy from above)
+        # include simulation of probabilities for round 0 instead of just the max
+        # do round probability function
+
+    def simulate_playoffs_from_this_point(self, higher_seed_abb, lower_seed_abb):
         pass
 
-    def simulate_playoffs_from_this_point():
-        """Simulates current playoff picture."""
+    def predict_playoff_picture_from_this_point(self):
+        """Return table of probabilities for each playoff round for each team."""
         pass
 
 
 # Define XGBoost model class:
+
 
 class XGBoostModel:
     def __init__(self, injury_adjusted, avg_minutes_played_cutoff):
         self.injury_adjusted = injury_adjusted
         self.avg_minutes_played_cutoff = avg_minutes_played_cutoff
         self.train_set = train_class.get_training_dataset(
-            injury_adjusted=self.injury_adjusted, 
-            avg_minutes_played_cutoff=self.avg_minutes_played_cutoff, 
-            force_update=False
+            injury_adjusted=self.injury_adjusted,
+            avg_minutes_played_cutoff=self.avg_minutes_played_cutoff,
+            force_update=False,
         )
         self.model = None
         self.best_params = None
         self.best_score = None
-        
+
     def grid_search(self, param_grid):
-        xgb_clf = xgb.XGBClassifier(objective='binary:logistic', n_jobs=-1)
+        xgb_clf = xgb.XGBClassifier(objective="binary:logistic", n_jobs=-1)
         grid_search = GridSearchCV(
-            estimator=xgb_clf,
-            param_grid=param_grid,
-            scoring='roc_auc',
-            cv=5,
-            verbose=0
+            estimator=xgb_clf, param_grid=param_grid, scoring="roc_auc", cv=5, verbose=0
         )
-        y = self.train_set['HOME_WIN']
-        X = self.train_set.drop('HOME_WIN', axis=1)
+        y = self.train_set["HOME_WIN"]
+        X = self.train_set.drop("HOME_WIN", axis=1)
 
         grid_search.fit(X, y)
         self.model = grid_search.best_estimator_

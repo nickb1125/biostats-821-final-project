@@ -8,7 +8,6 @@ from pull import training_dataset, year
 import itertools
 import pandas as pd
 import itertools
-import pandas as pd
 import xgboost as xgb
 from sklearn.model_selection import GridSearchCV
 import pickle
@@ -51,9 +50,6 @@ hyperparamter_space = list(itertools.product(possible_injury_adjusted, possible_
 # Load all possible hyperparameter datasets
 for settings in hyperparamter_space:
     train_class.load_train_data(injury_adjusted=settings[0], avg_minutes_played_cutoff=settings[1])
-# Save train_class using pickle
-with open('data/train_class.pickle', 'wb') as handle:
-    pickle.dump(train_class, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 # Create and train the NBA model
 # Define hyperparameter space:
