@@ -617,6 +617,15 @@ class year:
             )
         return replacement_df
 
+    def get_team_record(self, team_abb):
+        home_games = np.array(
+            self.game_data.query("TEAM_ABBREVIATION_H == 'BOS'").OUTCOME
+        )
+        away_games = 1 - np.array(
+            self.game_data.query("TEAM_ABBREVIATION_A == 'BOS'").OUTCOME
+        )
+        return np.mean(np.append(home_games, away_games))
+
     def reweight_stats(self, team_id, game_id, avg_minutes_played_cutoff):
         """Get injury reweighted predicted stats."""
         if game_id == 0:
@@ -1015,15 +1024,43 @@ class current_state:
         )
         return injured_players
 
-    def get_current_tourney_state(self):
+    def get_current_max_playoff_seed_probs(self):
+        """Gets teams with max probability of each seed in tourney."""
         seeds = self.get_playoff_picture_liklihood()
-        seeds["SEED"] = seeds["SEED"].astype(str) + "_" + seeds["REGION"]
+        ret = dict()
+        for team_abb, seed_dict in seeds.items():
+            team_seeds = []
+            team_probs = []
+            for seed, prob in seed_dict.items():
+                team_seeds.append(seed)
+                team_probs.append(prob)
+            if np.sum(team_probs) == 0:
+                continue
+            seed_choice = team_seeds[team_probs.index(max(team_probs))]
+            with_prob = seed_dict[seed_choice]
+            seed_choice = seed_choice.replace("_SEED", "")
+            ret.update({seed_choice: {team_abb: with_prob}})
+        return ret
+
+    def get_base_seeds(self):
+        """Gets base seeds for simulation"""
+        current_round_state = self.get_current_max_playoff_seed_probs()
+        seeds = []
+        for key, this_dict in current_round_state.items():
+            this_seed = pd.DataFrame({"SEED": [key]})
+            for team_abb, prob in this_dict.items():
+                this_seed["TEAM_ABB"] = team_abb
+            seeds.append(this_seed)
+        seeds = pd.concat(seeds)
+        return seeds
+
+    def get_current_tourney_state(self):
+        """Gets the state of the tournement currently. If hasnt started just gets max seed probs."""
+        seeds = self.get_base_seeds()
         this_year = self.year_class.get("current")
         games_thus_far = this_year.playoff_game_data[
             ["TEAM_ABBREVIATION_H", "TEAM_ABBREVIATION_A", "OUTCOME"]
         ].copy()
-        seeds["TEAM_ABB"] = [team_id_to_abb_conv(team_id) for team_id in seeds.TEAM_ID]
-        seeds = seeds.drop(["TEAM_ID", "REGION"], axis=1)
         games_thus_far = (
             games_thus_far.merge(
                 seeds, left_on="TEAM_ABBREVIATION_H", right_on="TEAM_ABB"
@@ -1039,10 +1076,9 @@ class current_state:
             row.TEAM_ABBREVIATION_H if row.OUTCOME == 1 else row.TEAM_ABBREVIATION_A
             for _, row in games_thus_far.iterrows()
         ]
+        games_thus_far
         got_this_far = True
-        current_round_state = {
-            "R0": {row.SEED: {row.TEAM_ABB: row.PROB} for _, row in seeds.iterrows()}
-        }
+        current_round_state = {"R0": self.get_current_max_playoff_seed_probs()}
         for round in ["R1", "R2", "R3", "R4"]:
             matchups = self.script[round]
             current_round_state.update({round: dict()})
@@ -1072,9 +1108,10 @@ class current_state:
                     got_this_far = False
             if not got_this_far:
                 break
-        current_round_state
+        return current_round_state
 
     def get_playoff_picture_liklihood(self):
+        """Gets all probabilities of seeds for tourney."""
         playoff_proj = scrape_nba_playoff_projections()
         west = playoff_proj["West"]
         east = playoff_proj["East"]
@@ -1090,36 +1127,22 @@ class current_state:
         ]
         west[seed_columns] = west[seed_columns].applymap(float)
         east[seed_columns] = east[seed_columns].applymap(float)
-        max_seed_df = []
-        for seed in range(1, 9):
-            seed_col = f"{seed}_SEED_PROB"
-            max_team_name = west.loc[
-                west[seed_col].idxmax(), ["TEAM_ID", f"{seed}_SEED_PROB"]
-            ]
-            max_for_row = pd.DataFrame(
-                {
-                    "REGION": "WEST",
-                    "TEAM_ID": [max_team_name.TEAM_ID],
-                    "SEED": [seed],
-                    "PROB": [max_team_name[f"{seed}_SEED_PROB"]],
-                }
-            )
-            max_seed_df.append(max_for_row)
-        for seed in range(1, 9):
-            seed_col = f"{seed}_SEED_PROB"
-            max_team_name = east.loc[
-                east[seed_col].idxmax(), ["TEAM_ID", f"{seed}_SEED_PROB"]
-            ]
-            max_for_row = pd.DataFrame(
-                {
-                    "REGION": "EAST",
-                    "TEAM_ID": [max_team_name.TEAM_ID],
-                    "SEED": [seed],
-                    "PROB": [max_team_name[f"{seed}_SEED_PROB"]],
-                }
-            )
-            max_seed_df.append(max_for_row)
-        return pd.concat(max_seed_df)
+        possible_seeds_dict = dict()
+        for index, row in east.iterrows():
+            team_id = team_id_to_abb_conv(row.TEAM_ID)
+            possible_seeds_dict.update({team_id: dict()})
+            for seed in range(1, 9):
+                possible_seeds_dict[team_id].update(
+                    {f"{seed}_SEED_EAST": row[f"{seed}_SEED_PROB"]}
+                )
+        for index, row in west.iterrows():
+            team_id = team_id_to_abb_conv(row.TEAM_ID)
+            possible_seeds_dict.update({team_id: dict()})
+            for seed in range(1, 9):
+                possible_seeds_dict[team_id].update(
+                    {f"{seed}_SEED_WEST": row[f"{seed}_SEED_PROB"]}
+                )
+        return possible_seeds_dict
 
     @property
     def get_current_year_class(self):
@@ -1139,8 +1162,23 @@ class current_state:
         prob = self.model.model.predict_proba(features)
         return prob[0][1]  # Return home win probabilities
 
-    def predict_series(self, higher_seed_abb, lower_seed_abb, for_simulation=False):
+    def predict_series(
+        self,
+        higher_seed_abb,
+        lower_seed_abb,
+        higher_already_won=0,
+        lower_already_won=0,
+        for_simulation=False,
+    ):
         """Get probabilities of each team winning in games 4-7 of the series."""
+        if (higher_already_won > 4) or (lower_already_won > 4):
+            return KeyError("A team cant win more than 4 games in a series")
+        if higher_already_won == 4:
+            num_games = higher_already_won + lower_already_won
+            return {higher_seed_abb: {num_games: 1}}
+        if lower_already_won == 4:
+            num_games = higher_already_won + lower_already_won
+            return {lower_already_won: {num_games: 1}}
         prob_when_higher_seed_home = self.predict_matchup(
             home_abb=higher_seed_abb, away_abb=lower_seed_abb
         )
@@ -1158,6 +1196,9 @@ class current_state:
             print(
                 f"Currently injured for {lower_seed_abb}: {self.print_current_team_injuries(lower_id)}"
             )
+            print(
+                f"{higher_seed_abb}-{lower_seed_abb} series is already {higher_already_won}-{lower_already_won}"
+            )
         prob_higher_wins_each_game = (
             prob_when_higher_seed_home,
             prob_when_higher_seed_home,
@@ -1167,10 +1208,27 @@ class current_state:
             prob_when_lower_seed_home,
             prob_when_higher_seed_home,
         )
+        num_already_played = higher_already_won + lower_already_won
+        already_occured = np.append(
+            np.repeat(0, lower_already_won), np.repeat(1, higher_already_won)
+        )
+        prob_higher_wins_each_game = np.append(
+            already_occured, prob_higher_wins_each_game[num_already_played:]
+        )
+        if num_already_played < 4:
+            games_left_to_play = list(range(4, 8))
+        else:
+            games_left_to_play = list(range(num_already_played + 1, 8))
         # Get possible sample space
         sample_space_previously_over = []
-        for game in [4, 5, 6, 7]:
-            sample_space = list(itertools.product([0, 1], repeat=game))
+        for game in games_left_to_play:
+            sample_space_new = list(
+                itertools.product([0, 1], repeat=game - num_already_played)
+            )
+            sample_space = [
+                tuple(np.append(already_occured, outcome))
+                for outcome in sample_space_new
+            ]
             sample_space_without_previously_over = [
                 outcome
                 for outcome in sample_space
@@ -1251,37 +1309,265 @@ class current_state:
         print(f"{team} wins in game {number}.")
         return {"Winner": team, "Game": number}
 
-    def get_what_has_happened(self, for_simulation=True):
-        print("_________Up to this point_________")
-        max_round_done = max([int(key[1]) for key in current_round_state.keys()])
-        for key, value in current_round_state.items():
-            if key == "R0":
-                print(f"-----> Pre-playoffs")
-                for seed, dict in value.items():
-                    for team, prob in dict.items():
-                        print(
-                            f"{team} secures {seed[0]} seed in the {seed[2:]} with probability {prob}"
+    def simulate_playoffs_from_this_point(self):
+        """Simulates playoffs."""
+        print(f"Simulating {self.year} NBA-playoffs")
+        print(f"_____Pre-Playoffs_____")
+        current_state = self.get_current_tourney_state()
+        for seed, dictio in current_state["R0"].items():
+            for team, prob in dictio.items():
+                print(
+                    f"{team} secures {seed[0]} seed in the {seed[2:]} with probability {prob}"
+                )
+        current_round_num = max([int(key[1]) for key in current_state.keys()])
+        base_seeds = self.get_base_seeds()
+        seeds = base_seeds.copy()
+        curr_year = self.year_class.get("current")
+        if current_round_num == 0:
+            rounds_yet_to_finish = list(range(1, 5))
+        else:
+            rounds_yet_to_finish = list(range(current_round_num, 5))
+        for this_round in rounds_yet_to_finish:
+            round_str = f"R{this_round}"
+            # if previous round
+            if current_round_num > this_round:
+                current_round = current_state[f"R{current_round_num}"]
+                for seed_reward, series_dict in current_round.items():
+                    won_teams = 0
+                    teams_record = dict()
+                    for team_abb, games_won in series_dict.items():
+                        if games_won == 4:
+                            teams_record.update({"Won": (team_abb, games_won)})
+                            won_teams += 1
+                            seeds = pd.concat(
+                                [
+                                    seeds,
+                                    pd.DataFrame(
+                                        {"SEED": seed_reward, "TEAM_ABB": team_abb}
+                                    ),
+                                ]
+                            )
+                        else:
+                            teams_record.update({"Lost": (team_abb, games_won)})
+                    won, lost = teams_record["Won"], teams_record["Lost"]
+                    print(
+                        f"{won[0]} wins  {won[0]}-{lost[0]} in {won[1]+lost[1]} with probability 100%"
+                    )
+                    if won_teams != 1:
+                        raise KeyError(
+                            f"No team won four games in {series_dict}! Or both did! Check whats up with this record or contact developer."
                         )
-            else:
-                print(f"-----> Round {key[1]}")
-                for matchup, dict in value.items():
-                    matchup_object = [
-                        (item, number_won) for item, number_won in dict.items()
-                    ]
-                    if max_round_done == int(key[1]):
+            # if current round
+            elif current_round_num == this_round:
+                print(f"_____ROUND {this_round} SIMULATION_____")
+                current_round = current_state[f"R{current_round_num}"]
+                matchups_split = self.script[round_str]
+                all_round_matchups = ["_".join(matchup) for matchup in matchups_split]
+                matchups_not_shown = list(
+                    set(all_round_matchups) - set(current_round.keys())
+                )
+                for matchup in matchups_not_shown:
+                    match = [
+                        match for match in matchups_split if "_".join(match) == matchup
+                    ][0]
+                    current_round.update(
+                        {
+                            matchup: {
+                                seeds.query("SEED == @match[0]")
+                                .reset_index(drop=1)
+                                .TEAM_ABB[0]: 0,
+                                seeds.query("SEED == @match[1]")
+                                .reset_index(drop=1)
+                                .TEAM_ABB[0]: 0,
+                            }
+                        }
+                    )
+                # finish round by simulation
+                for seed_reward, series_dict in current_round.items():
+                    both_teams = list(series_dict.keys())
+                    team_1, team_2 = both_teams[0], both_teams[1]
+                    team_1_already_won, team_2_already_won = (
+                        series_dict[team_1],
+                        series_dict[team_2],
+                    )
+                    team_1_seed = int(
+                        base_seeds.query("TEAM_ABB == @team_1")
+                        .reset_index(drop=1)
+                        .SEED[0][0]
+                    )
+                    team_2_seed = int(
+                        base_seeds.query("TEAM_ABB == @team_2")
+                        .reset_index(drop=1)
+                        .SEED[0][0]
+                    )
+                    if team_1_seed < team_2_seed:
+                        probs_dict = self.predict_series(
+                            higher_seed_abb=team_1,
+                            lower_seed_abb=team_2,
+                            higher_already_won=team_1_already_won,
+                            lower_already_won=team_2_already_won,
+                            for_simulation=True,
+                        )
+                    elif team_1_seed > team_2_seed:
+                        probs_dict = self.predict_series(
+                            higher_seed_abb=team_2,
+                            lower_seed_abb=team_1,
+                            higher_already_won=team_2_already_won,
+                            lower_already_won=team_1_already_won,
+                            for_simulation=True,
+                        )
+                    elif this_round == 4:
+                        team_1_record, team_2_record = curr_year.get_team_record(
+                            team_1
+                        ), curr_year.get_team_record(team_2)
+                        if team_1_record > team_2_record:
+                            probs_dict = self.predict_series(
+                                higher_seed_abb=team_1,
+                                lower_seed_abb=team_2,
+                                higher_already_won=team_1_already_won,
+                                lower_already_won=team_2_already_won,
+                                for_simulation=True,
+                            )
+                        else:
+                            probs_dict = self.predict_series(
+                                higher_seed_abb=team_2,
+                                lower_seed_abb=team_1,
+                                higher_already_won=team_2_already_won,
+                                lower_already_won=team_1_already_won,
+                                for_simulation=True,
+                            )
+                    possible = []
+                    probs = []
+                    total_prob = dict()
+                    for team, game_dict in probs_dict.items():
+                        total_prob.update({team: 0})
+                        for game, prob in game_dict.items():
+                            possible.append(
+                                (
+                                    team,
+                                    game,
+                                )
+                            )
+                            probs.append(prob)
+                            total_prob[team] += prob
+                    occurs = choices(possible, probs)[0]
+                    if occurs[0] == team_1:
+                        winner, loser = team_1, team_2
+                    else:
+                        winner, loser = team_2, team_1
+                    if team_1_already_won > team_2_already_won:
                         print(
-                            f"{matchup_object[0][0]} vs. {matchup_object[1][0]} series is {matchup_object[0][1]}-{matchup_object[1][1]}"
+                            f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}% (Currently {team_1_already_won}-{team_2_already_won} {team_1})"
                         )
                     else:
                         print(
-                            f"{matchup_object[0][0]} vs. {matchup_object[1][0]} series ended {matchup_object[0][1]}-{matchup_object[1][1]}"
+                            f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}% (Currently {team_2_already_won}-{team_1_already_won} {team_2})"
                         )
-        # to do: finish this function (use max_round_done_strategy from above)
-        # include simulation of probabilities for round 0 instead of just the max
-        # do round probability function
-
-    def simulate_playoffs_from_this_point(self, higher_seed_abb, lower_seed_abb):
-        pass
+                    seeds = pd.concat(
+                        [
+                            seeds,
+                            pd.DataFrame({"SEED": [seed_reward], "TEAM_ABB": [winner]}),
+                        ]
+                    )
+            # if future round
+            else:
+                print(f"_____ROUND {this_round} SIMULATION_____")
+                matchups_split = self.script[round_str]
+                all_round_matchups = ["_".join(matchup) for matchup in matchups_split]
+                current_round = dict()
+                for matchup in all_round_matchups:
+                    match = [
+                        match for match in matchups_split if "_".join(match) == matchup
+                    ][0]
+                    current_round.update(
+                        {
+                            matchup: {
+                                seeds.query("SEED == @match[0]")
+                                .reset_index(drop=1)
+                                .TEAM_ABB[0]: 0,
+                                seeds.query("SEED == @match[1]")
+                                .reset_index(drop=1)
+                                .TEAM_ABB[0]: 0,
+                            }
+                        }
+                    )
+                for seed_reward, series_dict in current_round.items():
+                    both_teams = list(series_dict.keys())
+                    team_1, team_2 = both_teams[0], both_teams[1]
+                    team_1_seed = int(
+                        base_seeds.query("TEAM_ABB == @team_1")
+                        .reset_index(drop=1)
+                        .SEED[0][0]
+                    )
+                    team_2_seed = int(
+                        base_seeds.query("TEAM_ABB == @team_2")
+                        .reset_index(drop=1)
+                        .SEED[0][0]
+                    )
+                    if team_1_seed < team_2_seed:
+                        probs_dict = self.predict_series(
+                            higher_seed_abb=team_1,
+                            lower_seed_abb=team_2,
+                            higher_already_won=0,
+                            lower_already_won=0,
+                            for_simulation=True,
+                        )
+                    elif team_1_seed > team_2_seed:
+                        probs_dict = self.predict_series(
+                            higher_seed_abb=team_2,
+                            lower_seed_abb=team_1,
+                            higher_already_won=0,
+                            lower_already_won=0,
+                            for_simulation=True,
+                        )
+                    elif this_round == 4:
+                        team_1_record, team_2_record = curr_year.get_team_record(
+                            team_1
+                        ), curr_year.get_team_record(team_2)
+                        if team_1_record > team_2_record:
+                            probs_dict = self.predict_series(
+                                higher_seed_abb=team_1,
+                                lower_seed_abb=team_2,
+                                higher_already_won=team_1_already_won,
+                                lower_already_won=team_2_already_won,
+                                for_simulation=True,
+                            )
+                        else:
+                            probs_dict = self.predict_series(
+                                higher_seed_abb=team_2,
+                                lower_seed_abb=team_1,
+                                higher_already_won=team_2_already_won,
+                                lower_already_won=team_1_already_won,
+                                for_simulation=True,
+                            )
+                    possible = []
+                    probs = []
+                    total_prob = dict()
+                    for team, game_dict in probs_dict.items():
+                        total_prob.update({team: 0})
+                        for game, prob in game_dict.items():
+                            possible.append(
+                                (
+                                    team,
+                                    game,
+                                )
+                            )
+                            probs.append(prob)
+                            total_prob[team] += prob
+                    occurs = choices(possible, probs)[0]
+                    if occurs[0] == team_1:
+                        winner, loser = team_1, team_2
+                    else:
+                        winner, loser = team_2, team_1
+                    print(
+                        f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}%"
+                    )
+                    seeds = pd.concat(
+                        [
+                            seeds,
+                            pd.DataFrame({"SEED": [seed_reward], "TEAM_ABB": [winner]}),
+                        ]
+                    )
 
     def predict_playoff_picture_from_this_point(self):
         """Return table of probabilities for each playoff round for each team."""
