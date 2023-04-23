@@ -40,7 +40,7 @@ def team_id_to_abb_conv(team_id):
         raise KeyError(f"User has input non-valid team id: {team_id}")
 
 
-def scrape_current_nba_injuries():
+def scrape_current_nba_injuries(games_ahead_of_now):
     player_ids = pd.DataFrame(players.get_active_players())[["id", "full_name"]].rename(
         columns={"full_name": "PLAYER_NAME", "id": "PLAYER_ID"}
     )
@@ -71,10 +71,22 @@ def scrape_current_nba_injuries():
 
     # clean
     df["EXPECTED_WHEN_BACK"] = [
-        when_back.replace("Expected to be out until at least", "")
+        datetime.datetime.strptime(
+            when_back.replace("Expected to be out until at least ", "")
+            + str(f" {datetime.datetime.now().year}"),
+            "%b %d %Y",
+        )
+        if (when_back != "Game Time Decision") and (when_back != "Out for the season")
+        else datetime.datetime.now() + datetime.timedelta(days=365)
+        if (when_back == "Out for the season")
+        else datetime.datetime.now() + datetime.timedelta(days=2)
         for when_back in df.EXPECTED_WHEN_BACK
     ]
-    return df.merge(player_ids, on="PLAYER_NAME", how="left")
+    ret = df.merge(player_ids, on="PLAYER_NAME", how="left")
+    gametime_date = datetime.datetime.now() + datetime.timedelta(
+        days=(games_ahead_of_now * 2)
+    )  # assume two days between playoff games on average
+    return ret.query("EXPECTED_WHEN_BACK > @gametime_date")
 
 
 def scrape_nba_playoff_projections():
@@ -191,6 +203,7 @@ class year:
             self.roster_info_cache = all_players[
                 ["TeamID", "PLAYER_ID", "POSITION"]
             ].rename({"TeamID": "TEAM_ID"}, axis=1)
+            self.update_timestamp_roster_info = datetime.datetime.now()
         return self.roster_info_cache
 
     @property
@@ -626,12 +639,16 @@ class year:
         )
         return np.mean(np.append(home_games, away_games))
 
-    def reweight_stats(self, team_id, game_id, avg_minutes_played_cutoff):
+    def reweight_stats(
+        self, team_id, game_id, avg_minutes_played_cutoff, games_ahead_of_today
+    ):
         """Get injury reweighted predicted stats."""
         if game_id == 0:
             injured = [
                 player_id
-                for player_id in scrape_current_nba_injuries().PLAYER_ID
+                for player_id in scrape_current_nba_injuries(
+                    games_ahead_of_today
+                ).PLAYER_ID
                 if not math.isnan(player_id)
             ]
         else:
@@ -757,6 +774,7 @@ class year:
         game_id,
         injury_adjusted: bool,
         avg_minutes_played_cutoff,
+        games_ahead_of_today,
     ):
         if injury_adjusted:
             home_reweighted = (
@@ -764,6 +782,7 @@ class year:
                     team_id=home_team,
                     game_id=game_id,
                     avg_minutes_played_cutoff=avg_minutes_played_cutoff,
+                    games_ahead_of_today=games_ahead_of_today,
                 )
                 .query("MIN_mean >= @avg_minutes_played_cutoff")
                 .drop(["MIN_mean", "PLAYER_ID"], axis=1)
@@ -786,6 +805,7 @@ class year:
                     team_id=away_team,
                     game_id=game_id,
                     avg_minutes_played_cutoff=avg_minutes_played_cutoff,
+                    games_ahead_of_today=games_ahead_of_today,
                 )
                 .query("MIN_mean >= @avg_minutes_played_cutoff")
                 .drop(["MIN_mean", "PLAYER_ID"], axis=1)
@@ -860,11 +880,17 @@ class year:
             game_id=game_id,
             injury_adjusted=injury_adjusted,
             avg_minutes_played_cutoff=avg_minutes_played_cutoff,
+            games_ahead_of_today=0,
         )
         return features
 
     def get_features_for_upcoming(
-        self, home_team, away_team, injury_adjusted, avg_minutes_played_cutoff
+        self,
+        home_team,
+        away_team,
+        injury_adjusted,
+        avg_minutes_played_cutoff,
+        games_ahead_of_today,
     ):
         """Return model features for upcoming game."""
         features = self.feature_creator(
@@ -873,6 +899,7 @@ class year:
             game_id=0,
             injury_adjusted=injury_adjusted,
             avg_minutes_played_cutoff=avg_minutes_played_cutoff,
+            games_ahead_of_today=games_ahead_of_today,
         )
         return features
 
@@ -1008,9 +1035,9 @@ class current_state:
             ],
         }
 
-    def print_current_team_injuries(self, team_id):
+    def print_current_team_injuries(self, team_id, games_ahead_of_today):
         """Prints current team injuries"""
-        all_injuries = scrape_current_nba_injuries()
+        all_injuries = scrape_current_nba_injuries(games_ahead_of_today)
         this_year = self.get_current_year_class.get("current")
         players_this_team = (
             this_year.roster_info.query("TEAM_ID == @team_id")
@@ -1133,14 +1160,14 @@ class current_state:
             possible_seeds_dict.update({team_id: dict()})
             for seed in range(1, 9):
                 possible_seeds_dict[team_id].update(
-                    {f"{seed}_SEED_EAST": row[f"{seed}_SEED_PROB"]}
+                    {f"{seed}_EAST": row[f"{seed}_SEED_PROB"]}
                 )
         for index, row in west.iterrows():
             team_id = team_id_to_abb_conv(row.TEAM_ID)
             possible_seeds_dict.update({team_id: dict()})
             for seed in range(1, 9):
                 possible_seeds_dict[team_id].update(
-                    {f"{seed}_SEED_WEST": row[f"{seed}_SEED_PROB"]}
+                    {f"{seed}_WEST": row[f"{seed}_SEED_PROB"]}
                 )
         return possible_seeds_dict
 
@@ -1150,7 +1177,7 @@ class current_state:
             self.year_class.update({"current": year(self.year)})
         return self.year_class
 
-    def predict_matchup(self, home_abb, away_abb):
+    def predict_matchup(self, home_abb, away_abb, games_ahead_of_today=0):
         """Predicts upcoming matchup."""
         home_id, away_id = team_abb_to_id(home_abb), team_abb_to_id(away_abb)
         features = self.year_class.get("current").get_features_for_upcoming(
@@ -1158,6 +1185,7 @@ class current_state:
             away_team=away_id,
             injury_adjusted=self.model.injury_adjusted,
             avg_minutes_played_cutoff=self.model.avg_minutes_played_cutoff,
+            games_ahead_of_today=games_ahead_of_today,
         )
         prob = self.model.model.predict_proba(features)
         return prob[0][1]  # Return home win probabilities
@@ -1169,6 +1197,7 @@ class current_state:
         higher_already_won=0,
         lower_already_won=0,
         for_simulation=False,
+        series_starts_in_how_many_games=0,
     ):
         """Get probabilities of each team winning in games 4-7 of the series."""
         if (higher_already_won > 4) or (lower_already_won > 4):
@@ -1179,34 +1208,82 @@ class current_state:
         if lower_already_won == 4:
             num_games = higher_already_won + lower_already_won
             return {lower_already_won: {num_games: 1}}
-        prob_when_higher_seed_home = self.predict_matchup(
-            home_abb=higher_seed_abb, away_abb=lower_seed_abb
+        prob_game_1 = self.predict_matchup(
+            home_abb=higher_seed_abb,
+            away_abb=lower_seed_abb,
+            games_ahead_of_today=series_starts_in_how_many_games,
         )
-        prob_when_lower_seed_home = self.predict_matchup(
-            home_abb=lower_seed_abb, away_abb=higher_seed_abb
+        prob_game_2 = self.predict_matchup(
+            home_abb=higher_seed_abb,
+            away_abb=lower_seed_abb,
+            games_ahead_of_today=series_starts_in_how_many_games + 1,
+        )
+        prob_game_3 = self.predict_matchup(
+            home_abb=lower_seed_abb,
+            away_abb=higher_seed_abb,
+            games_ahead_of_today=series_starts_in_how_many_games + 2,
+        )
+        prob_game_4 = self.predict_matchup(
+            home_abb=lower_seed_abb,
+            away_abb=higher_seed_abb,
+            games_ahead_of_today=series_starts_in_how_many_games + 3,
+        )
+        prob_game_5 = self.predict_matchup(
+            home_abb=higher_seed_abb,
+            away_abb=lower_seed_abb,
+            games_ahead_of_today=series_starts_in_how_many_games + 4,
+        )
+        prob_game_6 = self.predict_matchup(
+            home_abb=lower_seed_abb,
+            away_abb=higher_seed_abb,
+            games_ahead_of_today=series_starts_in_how_many_games + 5,
+        )
+        prob_game_7 = self.predict_matchup(
+            home_abb=higher_seed_abb,
+            away_abb=lower_seed_abb,
+            games_ahead_of_today=series_starts_in_how_many_games + 6,
         )
         if not for_simulation:
             higher_id, lower_id = team_abb_to_id(higher_seed_abb), team_abb_to_id(
                 lower_seed_abb
             )
-            print("Accounting for the following injuries...")
             print(
-                f"Currently injured for {higher_seed_abb}: {self.print_current_team_injuries(higher_id)}"
+                "Accounting for the following injuries and appropriate return timetables..."
             )
+
             print(
-                f"Currently injured for {lower_seed_abb}: {self.print_current_team_injuries(lower_id)}"
+                f"""Injured for {higher_seed_abb}: 
+            \n --->Projected Game 1:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games)}
+            \n --->Projected Game 2:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games + 1)}
+            \n --->Projected Game 3:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games + 2)}
+            \n --->Projected Game 4:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games + 3)}
+            \n --->Projected Game 5:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games + 4)}
+            \n --->Projected Game 6:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games + 5)}
+            \n --->Projected Game 7:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games + 6)} \n"""
             )
+
             print(
-                f"{higher_seed_abb}-{lower_seed_abb} series is already {higher_already_won}-{lower_already_won}"
+                f"""Injured for {lower_seed_abb}: 
+            \n --->Projected Game 1:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games)}
+            \n --->Projected Game 2:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games + 1)}
+            \n --->Projected Game 3:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games + 2)}
+            \n --->Projected Game 4:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games + 3)}
+            \n --->Projected Game 5:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games + 4)}
+            \n --->Projected Game 6:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games + 5)}
+            \n --->Projected Game 7:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games + 6)} \n"""
+            )
+
+            print(
+                f"{higher_seed_abb}-{lower_seed_abb} series is currently {higher_already_won}-{lower_already_won} \n"
             )
         prob_higher_wins_each_game = (
-            prob_when_higher_seed_home,
-            prob_when_higher_seed_home,
-            prob_when_lower_seed_home,
-            prob_when_lower_seed_home,
-            prob_when_higher_seed_home,
-            prob_when_lower_seed_home,
-            prob_when_higher_seed_home,
+            prob_game_1,
+            prob_game_2,
+            prob_game_3,
+            prob_game_4,
+            prob_game_5,
+            prob_game_6,
+            prob_game_7,
         )
         num_already_played = higher_already_won + lower_already_won
         already_occured = np.append(
@@ -1293,22 +1370,6 @@ class current_state:
         if for_simulation:
             return outcomes
 
-    def simulate_series(self, higher_seed_abb, lower_seed_abb):
-        probs = self.predict_series(
-            higher_seed_abb=higher_seed_abb,
-            lower_seed_abb=lower_seed_abb,
-            for_simulation=True,
-        )
-        team = choices(
-            list(probs.keys()),
-            weights=[sum(probs["BOS"].values()), sum(probs["ATL"].values())],
-        )[0]
-        number = choices(list(probs[team].keys()), weights=list(probs[team].values()))[
-            0
-        ]
-        print(f"{team} wins in game {number}.")
-        return {"Winner": team, "Game": number}
-
     def simulate_playoffs_from_this_point(self):
         """Simulates playoffs."""
         print(f"Simulating {self.year} NBA-playoffs")
@@ -1323,11 +1384,9 @@ class current_state:
         base_seeds = self.get_base_seeds()
         seeds = base_seeds.copy()
         curr_year = self.year_class.get("current")
-        if current_round_num == 0:
-            rounds_yet_to_finish = list(range(1, 5))
-        else:
-            rounds_yet_to_finish = list(range(current_round_num, 5))
-        for this_round in rounds_yet_to_finish:
+        rounds_to_play = list(range(1, 5))
+        games_from_now = 0
+        for this_round in rounds_to_play:
             round_str = f"R{this_round}"
             # if previous round
             if current_round_num > this_round:
@@ -1357,6 +1416,7 @@ class current_state:
                         raise KeyError(
                             f"No team won four games in {series_dict}! Or both did! Check whats up with this record or contact developer."
                         )
+                    games_from_now = 0
             # if current round
             elif current_round_num == this_round:
                 print(f"_____ROUND {this_round} SIMULATION_____")
@@ -1427,6 +1487,9 @@ class current_state:
                                 higher_already_won=team_1_already_won,
                                 lower_already_won=team_2_already_won,
                                 for_simulation=True,
+                                series_starts_in_how_many_games=-(
+                                    team_1_already_won + team_2_already_won
+                                ),
                             )
                         else:
                             probs_dict = self.predict_series(
@@ -1435,6 +1498,9 @@ class current_state:
                                 higher_already_won=team_2_already_won,
                                 lower_already_won=team_1_already_won,
                                 for_simulation=True,
+                                series_starts_in_how_many_games=-(
+                                    team_1_already_won + team_2_already_won
+                                ),
                             )
                     possible = []
                     probs = []
@@ -1469,6 +1535,7 @@ class current_state:
                             pd.DataFrame({"SEED": [seed_reward], "TEAM_ABB": [winner]}),
                         ]
                     )
+                    games_from_now = 3
             # if future round
             else:
                 print(f"_____ROUND {this_round} SIMULATION_____")
@@ -1511,6 +1578,7 @@ class current_state:
                             higher_already_won=0,
                             lower_already_won=0,
                             for_simulation=True,
+                            series_starts_in_how_many_games=games_from_now,
                         )
                     elif team_1_seed > team_2_seed:
                         probs_dict = self.predict_series(
@@ -1519,6 +1587,7 @@ class current_state:
                             higher_already_won=0,
                             lower_already_won=0,
                             for_simulation=True,
+                            series_starts_in_how_many_games=games_from_now,
                         )
                     elif this_round == 4:
                         team_1_record, team_2_record = curr_year.get_team_record(
@@ -1531,6 +1600,7 @@ class current_state:
                                 higher_already_won=team_1_already_won,
                                 lower_already_won=team_2_already_won,
                                 for_simulation=True,
+                                series_starts_in_how_many_games=games_from_now,
                             )
                         else:
                             probs_dict = self.predict_series(
@@ -1539,6 +1609,7 @@ class current_state:
                                 higher_already_won=team_2_already_won,
                                 lower_already_won=team_1_already_won,
                                 for_simulation=True,
+                                series_starts_in_how_many_games=games_from_now,
                             )
                     possible = []
                     probs = []
@@ -1568,10 +1639,113 @@ class current_state:
                             pd.DataFrame({"SEED": [seed_reward], "TEAM_ABB": [winner]}),
                         ]
                     )
+                    games_from_now += 7
 
-    def predict_playoff_picture_from_this_point(self):
-        """Return table of probabilities for each playoff round for each team."""
-        pass
+    def get_probs_of_each_round(self):
+        base_seeds = self.get_base_seeds()
+        current_state = self.get_current_tourney_state()
+        prob_of_seed = {row.SEED: {row.TEAM_ABB: 1} for _, row in base_seeds.iterrows()}
+        for this_round, matchups in self.script.items():
+            print(f"Loading {this_round} win probabilities...")
+            if this_round not in current_state.keys():
+                current_state.update({this_round: dict()})
+            for matchup in matchups:
+                seed_reward = "_".join(matchup)
+                if this_round == "R4":
+                    year_class = self.get_current_year_class.get("current")
+                    team_1_record = year_class.get_team_record(matchup[0])
+                    team_2_record = year_class.get_team_record(matchup[1])
+                    if team_1_record > team_2_record:
+                        higher_seed_probs = prob_of_seed[matchup[0]]
+                        lower_seed_probs = prob_of_seed[matchup[1]]
+                    else:
+                        higher_seed_probs = prob_of_seed[matchup[1]]
+                        lower_seed_probs = prob_of_seed[matchup[0]]
+                else:
+                    higher_seed_probs = prob_of_seed[matchup[0]]
+                    lower_seed_probs = prob_of_seed[matchup[1]]
+                prob_of_matchups_dict = {
+                    f"{higher_seed_abb}_{lower_seed_abb}": higher_seed_probs[
+                        higher_seed_abb
+                    ]
+                    * lower_seed_probs[lower_seed_abb]
+                    for higher_seed_abb in higher_seed_probs
+                    for lower_seed_abb in lower_seed_probs
+                }
+                prob_of_seed.update({seed_reward: dict()})
+                for possible_matchup, prob_of_matchup in prob_of_matchups_dict.items():
+                    higher_seed, lower_seed = possible_matchup[:3], possible_matchup[4:]
+                    if seed_reward in current_state[this_round].keys():
+                        current_state_of_matchup = current_state[this_round][
+                            seed_reward
+                        ]
+                        higher_seed_won = current_state_of_matchup[higher_seed]
+                        lower_seed_won = current_state_of_matchup[lower_seed]
+                        if (higher_seed_won == 4) or (lower_seed_won == 4):
+                            print(
+                                f"{higher_seed}-{lower_seed} series was completed {higher_seed_won}-{lower_seed_won}"
+                            )
+                        else:
+                            print(
+                                f"{higher_seed}-{lower_seed} is currently in progress {higher_seed_won}-{lower_seed_won}"
+                            )
+                    else:
+                        higher_seed_won, lower_seed_won = 0, 0
+                    predict_series_dict = self.predict_series(
+                        higher_seed,
+                        lower_seed,
+                        higher_already_won=higher_seed_won,
+                        lower_already_won=lower_seed_won,
+                        for_simulation=True,
+                    )
+                    prob_higher_seed_wins = np.sum(
+                        list(predict_series_dict[higher_seed].values())
+                    )
+                    if higher_seed in prob_of_seed[seed_reward]:
+                        prob_of_seed[seed_reward][higher_seed] += (
+                            prob_higher_seed_wins * prob_of_matchup
+                        )
+                    else:
+                        prob_of_seed[seed_reward].update(
+                            {higher_seed: prob_higher_seed_wins * prob_of_matchup}
+                        )
+                    if lower_seed in prob_of_seed[seed_reward]:
+                        prob_of_seed[seed_reward][lower_seed] += (
+                            1 - prob_higher_seed_wins
+                        ) * prob_of_matchup
+                    else:
+                        prob_of_seed[seed_reward].update(
+                            {lower_seed: (1 - prob_higher_seed_wins) * prob_of_matchup}
+                        )
+            if this_round == "R4":
+                round_probabilities = [
+                    (team_abb, prob_of_seed[seed_reward][team_abb])
+                    for team_abb in prob_of_seed[seed_reward]
+                ]
+                round_probabilities.sort(key=lambda x: x[1], reverse=True)
+                print(f"_______NBA FINALS________")
+                for team_prob in round_probabilities:
+                    print(f"{team_prob[0]} wins: {round(team_prob[1] * 100, 2)}%")
+                return
+            winning_seeds_this_round = list(
+                itertools.chain(*self.script[f"R{int(this_round[1]) + 1}"])
+            )
+            print(f"_______ROUND {this_round[1]}________")
+            prob_of_round_dict = {}
+            for team_abb in base_seeds.TEAM_ABB:
+                total_prob = 0
+                for winning_seed in winning_seeds_this_round:
+                    try:
+                        total_prob += prob_of_seed[winning_seed][team_abb]
+                    except KeyError:
+                        total_prob += 0
+                prob_of_round_dict.update({team_abb: total_prob})
+            round_probabilities = dict(
+                sorted(prob_of_round_dict.items(), key=lambda item: -item[1])
+            )
+            for team_abb, prob in round_probabilities.items():
+                print(f"{team_abb} wins: {round(prob * 100, 2)}%")
+            print("\n \n \n")
 
 
 # Define XGBoost model class:
