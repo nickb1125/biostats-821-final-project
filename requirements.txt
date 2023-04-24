@@ -21,3 +21,4 @@ tzdata==2023.3
 urllib3==1.26.15
 xgboost==1.7.5
 zope.interface==6.0
+nba-api==1.2

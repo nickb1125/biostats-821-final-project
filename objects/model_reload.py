@@ -1,4 +1,9 @@
 """Function to retrain XGB model for playoffs."""
+import os
+from objects.trainer import training_dataset
+from objects.model import XGBoostModel
+import pickle
+import itertools
 
 def model_retrain():
     if (os.path.exists("data/best_playoff_model.pickle")):
@@ -57,7 +62,7 @@ def model_retrain():
         xgb_model.grid_search(param_grid=hyperparameter_space)
         models.append(xgb_model)
         print(f"Best AUC with cross validated hyperparameters: {xgb_model.best_score}")
-
+    best_playoff_model = max(models, key=lambda model: model.model.best_score)
     print('Best hyperparameters:', best_playoff_model.model.get_params)
     print('Best AUC score', best_playoff_model.best_score)
     print(best_playoff_model.injury_adjusted, best_playoff_model.avg_minutes_played_cutoff)
@@ -71,4 +76,4 @@ def model_retrain():
     # Save model
 
     with open('data/best_playoff_model.pickle', 'wb') as handle:
-        pickle.dump(best_model, handle, protocol=pickle.HIGHEST_PROTOCOL)
+        pickle.dump(best_playoff_model, handle, protocol=pickle.HIGHEST_PROTOCOL)

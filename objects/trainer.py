@@ -1,4 +1,7 @@
 """Trainer class."""
+import datetime
+import time
+from objects.year import year
 
 class training_dataset:
     def __init__(self, since=2000):

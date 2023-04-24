@@ -4,10 +4,11 @@
 import argparse
 from objects.model import XGBoostModel
 from objects.model_reload import model_retrain
-from objects import current_state, helper, model, trainer, year
 import datetime 
 import pickle
 import os
+
+model_retrain()
 
 if not (os.path.exists("data/current_state_object.pickle")):
     "Data is not downloaded - downloading - this will take ~1 min and will only be done once..."

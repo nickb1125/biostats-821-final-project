@@ -510,7 +510,7 @@ class year:
         # Only considered injury needing replacement if average minutes is greater than 30
         injured = (
             self.regular_boxes_summary.query(
-                "(TEAM_ID == @team_id) & (PLAYER_ID in @injured) & (MIN_mean > 30) & (PLAYER_ID in @on_roster_still)"
+                "(TEAM_ID == @team_id) & (PLAYER_ID in @injured) & (MIN_mean > 25) & (PLAYER_ID in @on_roster_still)"
             )
             .reset_index(drop=1)
             .PLAYER_ID.tolist()
@@ -577,6 +577,7 @@ class year:
                     .PLAYER_ID.tolist()
                 )
             try:
+                print(possible_replacement_player_ids)
                 replacement_df = self.reweight_replacements_for_missing_player(
                     possible_replacement_player_ids=possible_replacement_player_ids,
                     remove_injured=remove_injured,
@@ -590,6 +591,7 @@ class year:
                     .reset_index(drop=1)
                     .PLAYER_ID.tolist()
                 )
+                print(possible_replacement_player_ids)
                 replacement_df = self.reweight_replacements_for_missing_player(
                     possible_replacement_player_ids=possible_replacement_player_ids,
                     remove_injured=remove_injured,
