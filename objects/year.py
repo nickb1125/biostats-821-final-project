@@ -43,7 +43,7 @@ class year:
                 datetime.datetime.now() - self.update_timestamp_roster_info
                 > datetime.timedelta(seconds=3600)
             )
-        ):
+        ) and (self.playoff_game_data.shape[0] == 0):
             print("---->Loading or updating player info...")
             all_players = []
             for team_id in self.regular_boxes.TEAM_ID.unique():
@@ -77,7 +77,7 @@ class year:
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_game_data
             > datetime.timedelta(seconds=3600)
-        ):
+        ) and (self.playoff_game_data.shape[0] == 0):
             print("Updating resular season game data.")
             all_games = (
                 endpoints.leaguegamefinder.LeagueGameFinder(
@@ -153,10 +153,10 @@ class year:
                 .query("TEAM_ID in @nba_team_ids")
             )
             time.sleep(2)
-        elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (
+        elif ((datetime.datetime.now().year in [self.year, self.year + 1]) and (
             datetime.datetime.now() - self.update_timestamp_regular_boxes
             > datetime.timedelta(seconds=3600)
-        ):
+        )) and (self.playoff_game_data.shape[0] == 0):
             print("---->Updating regular season box data...")
             self.regular_boxes_cache = (
                 endpoints.PlayerGameLogs(
