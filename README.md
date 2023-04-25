@@ -2,90 +2,132 @@
 
 # NBA Playoff Outcome Predictor
 
-This project is a Python-based NBA playoff outcome predictor that utilizes machine learning to predict game outcomes and playoff picture. It includes a data API that pulls data from the NBA, a model that predicts playoff outcomes given a list of features, and a command line interface that users can install and use to create inquiries for games and playoffs.
+## For Users:
 
-The project includes two main functions:
-
-1. predict_game(home_team_abb, away_team_abb) - predicts the outcome of a single game based on input data.
-2. predict_playoff_picture() - returns the ordered probabilities of each team making the NBA finals and previous rounds of the playoffs.
-3. simulate_playoffs_from_this_point() - simulates the playoffs given what has already happened this year (if anything)
+This project is a Python-based NBA playoff outcome predictor that utilizes machine learning to predict game outcomes and playoff picture results. It features a command line interface that users can install and use to create inquiries for games and playoffs.
 
 ### Installation
 
-To use the predictor, you must have Python 3.6 or higher installed. First, clone the repository to your local machine:
+To use the predictor, you must have Python 3.6 or higher installed. First, clone the repository to your local machine and install requirements. Also set your PYTHONPATH appropriately if neccecary:
 
 git clone https://github.com/wpowell31/biostats-821-final-project
 pip install -r requirements.txt
+export PYTHONPATH="{INSERT PATH TO CLONED REPO"}"
 
-### Usage
+### Main Functionality
 
-The predict_game() function takes two arguments - the home team abbreviation and the away team abbreviation. For example:
+The command line interface includes four main commands:
 
-from predictor import predict_game
-predict_game("LAL", "MIA") -> Predicted winner: LAL at 68%
+**1. Predict Theoretical Playoff Game**
+Command: python3 cli/interface.py predict_game 
 
-The predict_playoff_picture() function returns the ordered probabilities of each team making the NBA finals and previous rounds of the playoffs. For example:
+The interface will prompt the user for (1) the abbreviation of the home team, (2) the abbreviation of the away team, and (3) how many days from today the game will be played in.
 
-from predictor import predict_playoff_picture
-predict_playoff_picture()
+Output will look like the following:
 
-| Team | Finals | Conference Finals | Conference Semifinals | First Round |
-| --- | --- | --- | --- | --- |
-| Brooklyn Nets | 30% | 60% | 80% | 95% |
-| Los Angeles Lakers | 25% | 55% | 75% | 90% |
-| Utah Jazz | 20% | 50% | 70% | 85% |
-| Milwaukee Bucks | 15% | 45% | 65% | 80% |
-| Philadelphia 76ers | 10% | 40% | 60% | 75% |
-| Phoenix Suns | 5% | 35% | 55% | 70% |
-| Denver Nuggets | 5% | 30% | 50% | 65% |
-| Miami Heat | 4% | 25% | 45% | 60% |
+"BOS has a 77.53 chance of beating ATL at home."
 
-The simulate_playoffs_from_this_point() function returns a simulation of the playoff picture:
+**2. Predict Theoretical Playoff Series**
+Command: python3 cli/interface.py predict_series
+
+The interface will prompt the user for (1) the abbreviation of the higher seed, (2) the abbreviation of the lower seed, (3) how many games the higer seed has already won, (4) how many games the lower seed has already won, and (5) how many days from today the next game of the series will be played in. Each round winning probabilities will be output for both teams.
+
+BOS-ATL series is currently 0-0 
+
+        BOS wins in 4: 15.99%
+        BOS wins in 5: 30.47%
+        BOS wins in 6: 17.69%
+        BOS wins in 7: 19.14%
+        ATL wins in 4: 1.18%
+        ATL wins in 5: 2.4%
+        ATL wins in 6: 7.59%
+        ATL wins in 7: 5.55%
+__________Total Probabilities__________
+        BOS wins series: 83.28%
+        ATL wins series: 16.72%
+
+**3. True Playoff Simulator**
+Command: python3 cli/interface.py simulate_playoffs
+
+Simulates playoff situation from this CURRENT point in the season, accounting for injury projections. Updates each time you call the function.
+
+Output will look like the following:
+
+_____Pre-Playoffs_____
+Updating playoff game data.
+MIL secures 1 seed in the EAST with probability 100.0
+BOS secures 2 seed in the EAST with probability 100.0
+PHI secures 3 seed in the EAST with probability 100.0
+CLE secures 4 seed in the EAST with probability 100.0
+NYK secures 5 seed in the EAST with probability 100.0
+BKN secures 6 seed in the EAST with probability 100.0
+ATL secures 7 seed in the EAST with probability 100.0
+MIA secures 8 seed in the EAST with probability 100.0
+...
+_____ROUND 1 SIMULATION_____
+MIA wins MIA-MIL in 7 with probability 68.59% (Currently 2-1 MIA)
+BOS wins BOS-ATL in 5 with probability 97.56% (Currently 3-1 BOS)
+PHI wins PHI-BKN in 4 with probability 100% (Currently 4-0 PHI)
+NYK wins NYK-CLE in 6 with probability 72.36% (Currently 3-1 NYK)
+DEN wins DEN-MIN in 5 with probability 97.56% (Currently 3-1 DEN)
+LAL wins LAL-MEM in 5 with probability 67.3% (Currently 2-1 LAL)
+GSW wins GSW-SAC in 6 with probability 39.29% (Currently 2-2 GSW)
+PHX wins PHX-LAC in 6 with probability 96.48% (Currently 3-1 PHX)
+_____ROUND 2 SIMULATION_____
+MIA wins MIA-NYK in 7 with probability 37.2%
+BOS wins BOS-PHI in 6 with probability 66.82%
+DEN wins DEN-PHX in 6 with probability 88.51%
+...
+
+**4. True Playoff Round Probability Calculator**
+Command: python3 cli/interface.py simulate_playoffs get_probs_of_each_round
+
+Calculates each teams CURRENT probability of winning each round of NBA playoffs based on regular season features. Does so throigh conditional and cumulative probability calculation as opposed to bootstrapping for faster results. Updates each time you call the function.
+
+Output will look like the following:
 
 
-"First Round:
 
-Eastern Conference:
+### Help Functions
 
-(1) Philadelphia 76ers vs. (8) Charlotte Hornets
+**1. Model Reload**
+Command: python3 cli/interface.py model_reload
 
-The 76ers win the series 4-1.
+The model included with the cloned reposity was trained on data from 2000 to 2021. If years have passed and you would like to update the model simply run this command and the model will be retrained with injury corrective and player hyperparameter tuning (see below section). You will be asked if you truly want to do this, as it may take more than 40 minutes to collect features and train the model.
 
-(4) New York Knicks vs. (5) Atlanta Hawks
+## How does modeling account for injuries?
 
-The Knicks win the series 4-3 in a close matchup.
+This method is used in the NBA to help teams re-evaluate their strategy when a key player is injured. It calculates how well the team's possible replacement players might perform, given the missing player's minutes, and adjusts their statistics accordingly. The method looks at the possible replacement players on the same team as the injured player and selects the best player to replace the missing player. It then takes the number of minutes played by the injured player and distributes them among the replacement players based on how many minutes they typically play. It also updates the replacement players' statistics to reflect their new playing time. This helps the team better understand how their performance might be impacted by the missing player and adjust their strategy accordingly.
 
-(3) Milwaukee Bucks vs. (6) Miami Heat
+More in depth, the average number of minutes of the player that is out for injury or other reasons is calculated and distributed to the most qualified players of the same position up to certain thresholds until all minutes lost have been reaccounted for. The players minute-dependent statistics (i.e. PTS, REBOUNDS, etc) are then recalculated accordingly. Note that our injury adjustments assume linearity of statistics by each minute added to their play time. Additionally, only players that average 25 minutes or more are injury adjusted for.
 
-The Bucks win the series 4-2.
+## For Developers:
 
-(2) Brooklyn Nets vs. (7) Boston Celtics
+**Objects and functions are each stored in their own files in the objects/ directory. Below is a description of each.**
 
-The Nets win the series 4-0, sweeping the Celtics.
+**year(season : int)**:** Object to updates data for a season within properties and calls methods for feature extraction for that year as well as injury adjustments.
 
-Western Conference:
+**model_reload():** Function to reload and train model up to current year whenever called
 
-(1) Utah Jazz vs. (8) Golden State Warriors"
+**training_dataset(since : int):** Stores datasets that can be updated for training model. Takes in "since" which is an indicator of when model training data should start (it ends the two years prior to the current year).
 
-.... so on
+**XGBoostModel(injury_adjusted : bool, avg_minutes_played_cutoff : int, train_class : training_dataset):** (Stored in objects/model) contains class for xgboost classifier used for prediction. Takes in training dataset hyperparameters "injury_adjusted" to indicate whether features should be injury adjusted, and "avg_minutes_played_cutoff" to indicate how many minutes a player needs to play on average to contrinute to features. Also takes in a training_dataset object.
+
+**current_state():** Class that organizes and regularly updates all data from current year so that features can be made and predicitons are updated. Also contains methods for calculating round probabilities via conditional probability calculations.
+
+There are also various helper functions contained in objects/helper.py that simply aid in the creation of the above obejcts through scrapers and other useful things.
+
+**Data is included in the data folder, below is a description.**
+
+**data/best_playoff_model.pickle**: A pickle file containing the pretrained XGBoost model discussed earlier. THis can be updated any time with model_reload.
+
+**data/current_state_object**: A pickle file containing a current_state object . This allows the user to not have to download the current year data each time, and the object itself is self-updating.
+
+**Command line interface object is contained in cli/interface.py**
+
+It is produced with the argparse library.
 
 
-### API
+## Credits
 
-The api.py file contains a Flask app that serves as the data API. It exposes two endpoints:
-
-/teams - returns a list of all NBA teams and their abbreviations.
-/team/<team_abb> - returns CURRENT model features (including features not included through NBA API like ELO).
-To run the API, navigate to the project directory and run:
-
-python api.py
-
-The API will be hosted on http://localhost:5000.
-
-### Model
-
-The model used in this project is a multilayer-perceptron trained on historical NBA playoff data. The model uses features such as average point differential, ELO, and team statistics to predict the outcome of playoff games. 
-
-### Credits
-
-This project was created by Will Powell, Nick Bachelder, and Wanying Mo. It is based on the NBA-API and uses data from Basketball Reference.
+This project was created by Will Powell, Nick Bachelder, and Wanying Mo. Main game and box data is pulled from NBA API. All current injuries are calculated by pulling from the CBS website. Since we do not calculate the probability of making the playoff, such probabilities are pulled from NBA references predictions.

@@ -577,7 +577,6 @@ class year:
                     .PLAYER_ID.tolist()
                 )
             try:
-                print(possible_replacement_player_ids)
                 replacement_df = self.reweight_replacements_for_missing_player(
                     possible_replacement_player_ids=possible_replacement_player_ids,
                     remove_injured=remove_injured,
@@ -591,7 +590,6 @@ class year:
                     .reset_index(drop=1)
                     .PLAYER_ID.tolist()
                 )
-                print(possible_replacement_player_ids)
                 replacement_df = self.reweight_replacements_for_missing_player(
                     possible_replacement_player_ids=possible_replacement_player_ids,
                     remove_injured=remove_injured,

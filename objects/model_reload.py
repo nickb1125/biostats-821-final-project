@@ -58,7 +58,7 @@ def model_retrain():
     models = []
     for settings in itertools.product(possible_injury_adjusted, possible_avg_minutes_played_cutoff):
         print(f"-------->Searching for injury adjusted {settings[0]}, minutes cutoff {settings[1]}")
-        xgb_model = XGBoostModel(injury_adjusted=settings[0], avg_minutes_played_cutoff=settings[1])
+        xgb_model = XGBoostModel(injury_adjusted=settings[0], avg_minutes_played_cutoff=settings[1], train_class = train_class)
         xgb_model.grid_search(param_grid=hyperparameter_space)
         models.append(xgb_model)
         print(f"Best AUC with cross validated hyperparameters: {xgb_model.best_score}")

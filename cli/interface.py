@@ -8,8 +8,6 @@ import datetime
 import pickle
 import os
 
-model_retrain()
-
 if not (os.path.exists("data/current_state_object.pickle")):
     "Data is not downloaded - downloading - this will take ~1 min and will only be done once..."
     now = current_state.current_state()
@@ -25,6 +23,8 @@ if ((now.year != datetime.datetime.now().year - 1) & (datetime.datetime.now().mo
     now = current_state.current_state()
     with open('data/current_state_object.pickle', 'wb') as handle:
         pickle.dump(now, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+now.simulate_playoffs_from_this_point()
 
 
 ####################### KEEP ALL CODE ABOVE AND UPDATE THE BELOW CODE TO BE A COMMAND LINE INTERFACE FOR EACH OF THE 4 FUNCTIONS...
