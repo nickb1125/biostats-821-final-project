@@ -96,6 +96,73 @@ Calculates each teams CURRENT probability of winning each round of NBA playoffs 
 
 Output will look like the following:
 
+`
+Loading R1 win probabilities...
+MIL-MIA is currently in progress 1-2
+BOS-ATL is currently in progress 3-1
+PHI-BKN series was completed 4-0
+CLE-NYK is currently in progress 1-3
+DEN-MIN is currently in progress 3-1
+MEM-LAL is currently in progress 1-2
+SAC-GSW is currently in progress 2-2
+PHX-LAC is currently in progress 3-1
+_______ROUND 1________
+PHI wins: 100%
+DEN wins: 97.56%
+BOS wins: 97.56%
+PHX wins: 96.48%
+NYK wins: 72.36%
+MIA wins: 68.59%
+LAL wins: 67.3%
+SAC wins: 60.71%
+GSW wins: 39.29%
+MEM wins: 32.7%
+MIL wins: 31.41%
+CLE wins: 27.64%
+LAC wins: 3.52%
+ATL wins: 2.44%
+MIN wins: 2.44%
+BKN wins: 0%
+
+Loading R2 win probabilities...
+_______ROUND 2________
+DEN wins: 86.2%
+BOS wins: 65.63%
+LAL wins: 45.5%
+MIA wins: 39.67%
+PHI wins: 32.39%
+NYK wins: 28.05%
+MIL wins: 21.49%
+MEM wins: 20.63%
+SAC wins: 19.67%
+GSW wins: 14.21%
+PHX wins: 11.29%
+CLE wins: 10.79%
+ATL wins: 1.98%
+MIN wins: 1.93%
+LAC wins: 0.58%
+BKN wins: 0.0%
+
+Loading R3 win probabilities...
+_______ROUND 3________
+DEN wins: 69.05%
+BOS wins: 26.47%
+MIA wins: 22.17%
+NYK wins: 17.49%
+MIL wins: 13.39%
+PHI wins: 12.64%
+LAL wins: 8.83%
+PHX wins: 8.45%
+CLE wins: 7.43%
+MEM wins: 5.62%
+SAC wins: 3.51%
+GSW wins: 2.84%
+MIN wins: 1.31%
+ATL wins: 0.41%
+LAC wins: 0.4%
+BKN wins: 0.0%
+```
+
 
 
 ### Help Functions
