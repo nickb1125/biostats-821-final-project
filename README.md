@@ -84,7 +84,8 @@ ATL secures 7 seed in the EAST with probability 100.0
 MIA secures 8 seed in the EAST with probability 100.0
 
 ...
-_____ROUND 1 SIMULATION_____
+ROUND 1 SIMULATION
+
 MIA wins MIA-MIL in 7 with probability 68.59% (Currently 2-1 MIA)
 
 BOS wins BOS-ATL in 5 with probability 97.56% (Currently 3-1 BOS)
@@ -101,7 +102,8 @@ GSW wins GSW-SAC in 6 with probability 39.29% (Currently 2-2 GSW)
 
 PHX wins PHX-LAC in 6 with probability 96.48% (Currently 3-1 PHX)
 
-_____ROUND 2 SIMULATION_____
+ROUND 2 SIMULATION
+
 MIA wins MIA-NYK in 7 with probability 37.2%
 
 BOS wins BOS-PHI in 6 with probability 66.82%
