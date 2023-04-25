@@ -1,4 +1,4 @@
-# biostats-821-final-project
+#### BIOSTAT 821 Final Project
 
 # NBA Playoff Outcome Predictor
 
@@ -11,7 +11,9 @@ This project is a Python-based NBA playoff outcome predictor that utilizes machi
 To use the predictor, you must have Python 3.6 or higher installed. First, clone the repository to your local machine and install requirements. Also set your PYTHONPATH appropriately if neccecary:
 
 git clone https://github.com/wpowell31/biostats-821-final-project
+
 pip install -r requirements.txt
+
 export PYTHONPATH="{INSERT PATH TO CLONED REPO"}"
 
 ### Main Functionality
@@ -34,17 +36,27 @@ The interface will prompt the user for (1) the abbreviation of the higher seed, 
 
 BOS-ATL series is currently 0-0 
 
-        BOS wins in 4: 15.99%
-        BOS wins in 5: 30.47%
-        BOS wins in 6: 17.69%
-        BOS wins in 7: 19.14%
-        ATL wins in 4: 1.18%
-        ATL wins in 5: 2.4%
-        ATL wins in 6: 7.59%
-        ATL wins in 7: 5.55%
+BOS wins in 4: 15.99%
+
+BOS wins in 5: 30.47%
+
+BOS wins in 6: 17.69%
+
+BOS wins in 7: 19.14%
+
+ATL wins in 4: 1.18%
+
+ATL wins in 5: 2.4%
+
+ATL wins in 6: 7.59%
+
+ATL wins in 7: 5.55%
+
 __________Total Probabilities__________
-        BOS wins series: 83.28%
-        ATL wins series: 16.72%
+
+BOS wins series: 83.28%
+
+ATL wins series: 16.72%
 
 **3. True Playoff Simulator**
 Command: python3 cli/interface.py simulate_playoffs
@@ -54,29 +66,48 @@ Simulates playoff situation from this CURRENT point in the season, accounting fo
 Output will look like the following:
 
 _____Pre-Playoffs_____
-Updating playoff game data.
+
 MIL secures 1 seed in the EAST with probability 100.0
+
 BOS secures 2 seed in the EAST with probability 100.0
+
 PHI secures 3 seed in the EAST with probability 100.0
+
 CLE secures 4 seed in the EAST with probability 100.0
+
 NYK secures 5 seed in the EAST with probability 100.0
+
 BKN secures 6 seed in the EAST with probability 100.0
+
 ATL secures 7 seed in the EAST with probability 100.0
+
 MIA secures 8 seed in the EAST with probability 100.0
+
 ...
 _____ROUND 1 SIMULATION_____
 MIA wins MIA-MIL in 7 with probability 68.59% (Currently 2-1 MIA)
+
 BOS wins BOS-ATL in 5 with probability 97.56% (Currently 3-1 BOS)
+
 PHI wins PHI-BKN in 4 with probability 100% (Currently 4-0 PHI)
+
 NYK wins NYK-CLE in 6 with probability 72.36% (Currently 3-1 NYK)
+
 DEN wins DEN-MIN in 5 with probability 97.56% (Currently 3-1 DEN)
+
 LAL wins LAL-MEM in 5 with probability 67.3% (Currently 2-1 LAL)
+
 GSW wins GSW-SAC in 6 with probability 39.29% (Currently 2-2 GSW)
+
 PHX wins PHX-LAC in 6 with probability 96.48% (Currently 3-1 PHX)
+
 _____ROUND 2 SIMULATION_____
 MIA wins MIA-NYK in 7 with probability 37.2%
+
 BOS wins BOS-PHI in 6 with probability 66.82%
+
 DEN wins DEN-PHX in 6 with probability 88.51%
+
 ...
 
 **4. True Playoff Round Probability Calculator**
@@ -97,9 +128,7 @@ The model included with the cloned reposity was trained on data from 2000 to 202
 
 ## How does modeling account for injuries?
 
-This method is used in the NBA to help teams re-evaluate their strategy when a key player is injured. It calculates how well the team's possible replacement players might perform, given the missing player's minutes, and adjusts their statistics accordingly. The method looks at the possible replacement players on the same team as the injured player and selects the best player to replace the missing player. It then takes the number of minutes played by the injured player and distributes them among the replacement players based on how many minutes they typically play. It also updates the replacement players' statistics to reflect their new playing time. This helps the team better understand how their performance might be impacted by the missing player and adjust their strategy accordingly.
-
-More in depth, the average number of minutes of the player that is out for injury or other reasons is calculated and distributed to the most qualified players of the same position up to certain thresholds until all minutes lost have been reaccounted for. The players minute-dependent statistics (i.e. PTS, REBOUNDS, etc) are then recalculated accordingly. Note that our injury adjustments assume linearity of statistics by each minute added to their play time. Additionally, only players that average 25 minutes or more are injury adjusted for.
+The average number of minutes of the player that is out for injury or other reasons is calculated and distributed to the most qualified players of the same position up to certain thresholds until all minutes lost have been reaccounted for. The players minute-dependent statistics (i.e. PTS, REBOUNDS, etc) are then recalculated accordingly. Note that our injury adjustments assume linearity of statistics by each minute added to their play time. Additionally, only players that average 25 minutes or more are injury adjusted for.
 
 ## For Developers:
 
