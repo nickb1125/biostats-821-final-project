@@ -96,7 +96,7 @@ Calculates each teams CURRENT probability of winning each round of NBA playoffs 
 
 Output will look like the following:
 
-`
+```
 Loading R1 win probabilities...
 MIL-MIA is currently in progress 1-2
 BOS-ATL is currently in progress 3-1
