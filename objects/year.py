@@ -6,6 +6,7 @@ from nba_api.stats.library.parameters import SeasonType, SeasonTypePlayoffs
 from objects.helper import nba_team_ids, scrape_current_nba_injuries
 import time
 import math
+import numpy as np
 
 class year:
     def __init__(self, year):
