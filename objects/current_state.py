@@ -219,11 +219,19 @@ class current_state:
         if (higher_already_won > 4) or (lower_already_won > 4):
             return KeyError("A team cant win more than 4 games in a series")
         if higher_already_won == 4:
+            if not for_simulation:
+                print(
+                        f"{higher_seed_abb} wins {higher_seed_abb}-{lower_seed_abb} in {higher_already_won + lower_already_won} with probability 100%"
+                    )
             num_games = higher_already_won + lower_already_won
             return {higher_seed_abb: {num_games: 1}}
         if lower_already_won == 4:
+            if not for_simulation:
+                print(
+                        f"{lower_seed_abb} wins {lower_seed_abb}-{higher_seed_abb} in {higher_already_won + lower_already_won} with probability 100%"
+                    )
             num_games = higher_already_won + lower_already_won
-            return {lower_already_won: {num_games: 1}}
+            return {lower_seed_abb: {num_games: 1}}
         prob_game_1 = self.predict_matchup(
             home_abb=higher_seed_abb,
             away_abb=lower_seed_abb,
@@ -404,258 +412,139 @@ class current_state:
         games_from_now = 0
         for this_round in rounds_to_play:
             round_str = f"R{this_round}"
-            # if previous round
-            if current_round_num > this_round:
-                current_round = current_state[f"R{current_round_num}"]
-                for seed_reward, series_dict in current_round.items():
-                    won_teams = 0
-                    teams_record = dict()
-                    for team_abb, games_won in series_dict.items():
-                        if games_won == 4:
-                            teams_record.update({"Won": (team_abb, games_won)})
-                            won_teams += 1
-                            seeds = pd.concat(
-                                [
-                                    seeds,
-                                    pd.DataFrame(
-                                        {"SEED": seed_reward, "TEAM_ABB": team_abb}
-                                    ),
-                                ]
-                            )
-                        else:
-                            teams_record.update({"Lost": (team_abb, games_won)})
-                    won, lost = teams_record["Won"], teams_record["Lost"]
-                    print(
-                        f"{won[0]} wins  {won[0]}-{lost[0]} in {won[1]+lost[1]} with probability 100%"
-                    )
-                    if won_teams != 1:
-                        raise KeyError(
-                            f"No team won four games in {series_dict}! Or both did! Check whats up with this record or contact developer."
-                        )
-                    games_from_now = 0
-            # if current round
-            elif current_round_num == this_round:
-                print(f"_____ROUND {this_round} SIMULATION_____")
-                current_round = current_state[f"R{current_round_num}"]
-                matchups_split = self.script[round_str]
-                all_round_matchups = ["_".join(matchup) for matchup in matchups_split]
-                matchups_not_shown = list(
-                    set(all_round_matchups) - set(current_round.keys())
-                )
-                for matchup in matchups_not_shown:
-                    match = [
-                        match for match in matchups_split if "_".join(match) == matchup
-                    ][0]
-                    current_round.update(
-                        {
-                            matchup: {
-                                seeds.query("SEED == @match[0]")
-                                .reset_index(drop=1)
-                                .TEAM_ABB[0]: 0,
-                                seeds.query("SEED == @match[1]")
-                                .reset_index(drop=1)
-                                .TEAM_ABB[0]: 0,
-                            }
+            print(f"_____ROUND {this_round} SIMULATION_____")
+            if (current_round_num >= this_round):
+                current_round = current_state[f"R{this_round}"]
+            else:
+                current_round = dict()
+            matchups_split = self.script[round_str]
+            all_round_matchups = ["_".join(matchup) for matchup in matchups_split]
+            matchups_not_shown = list(
+                set(all_round_matchups) - set(current_round.keys())
+            )
+            for matchup in matchups_not_shown:
+                match = [
+                    match for match in matchups_split if "_".join(match) == matchup
+                ][0]
+                current_round.update(
+                    {
+                        matchup: {
+                            seeds.query("SEED == @match[0]")
+                            .reset_index(drop=1)
+                            .TEAM_ABB[0]: 0,
+                            seeds.query("SEED == @match[1]")
+                            .reset_index(drop=1)
+                            .TEAM_ABB[0]: 0,
                         }
+                    }
+                )
+            # finish round by simulation
+            for seed_reward, series_dict in current_round.items():
+                both_teams = list(series_dict.keys())
+                team_1, team_2 = both_teams[0], both_teams[1]
+                team_1_already_won, team_2_already_won = (
+                    series_dict[team_1],
+                    series_dict[team_2],
+                )
+                team_1_seed = int(
+                    base_seeds.query("TEAM_ABB == @team_1")
+                    .reset_index(drop=1)
+                    .SEED[0][0]
+                )
+                team_2_seed = int(
+                    base_seeds.query("TEAM_ABB == @team_2")
+                    .reset_index(drop=1)
+                    .SEED[0][0]
+                )
+                if team_1_seed < team_2_seed:
+                    probs_dict = self.predict_series(
+                        higher_seed_abb=team_1,
+                        lower_seed_abb=team_2,
+                        higher_already_won=team_1_already_won,
+                        lower_already_won=team_2_already_won,
+                        for_simulation=True,
                     )
-                # finish round by simulation
-                for seed_reward, series_dict in current_round.items():
-                    both_teams = list(series_dict.keys())
-                    team_1, team_2 = both_teams[0], both_teams[1]
-                    team_1_already_won, team_2_already_won = (
-                        series_dict[team_1],
-                        series_dict[team_2],
+                elif team_1_seed > team_2_seed:
+                    probs_dict = self.predict_series(
+                        higher_seed_abb=team_2,
+                        lower_seed_abb=team_1,
+                        higher_already_won=team_2_already_won,
+                        lower_already_won=team_1_already_won,
+                        for_simulation=True,
                     )
-                    team_1_seed = int(
-                        base_seeds.query("TEAM_ABB == @team_1")
-                        .reset_index(drop=1)
-                        .SEED[0][0]
-                    )
-                    team_2_seed = int(
-                        base_seeds.query("TEAM_ABB == @team_2")
-                        .reset_index(drop=1)
-                        .SEED[0][0]
-                    )
-                    if team_1_seed < team_2_seed:
+                elif this_round == 4:
+                    team_1_record, team_2_record = curr_year.get_team_record(
+                        team_1
+                    ), curr_year.get_team_record(team_2)
+                    if team_1_record > team_2_record:
                         probs_dict = self.predict_series(
                             higher_seed_abb=team_1,
                             lower_seed_abb=team_2,
                             higher_already_won=team_1_already_won,
                             lower_already_won=team_2_already_won,
                             for_simulation=True,
+                            series_starts_in_how_many_games=-(
+                                team_1_already_won + team_2_already_won
+                            ),
                         )
-                    elif team_1_seed > team_2_seed:
+                    else:
                         probs_dict = self.predict_series(
                             higher_seed_abb=team_2,
                             lower_seed_abb=team_1,
                             higher_already_won=team_2_already_won,
                             lower_already_won=team_1_already_won,
                             for_simulation=True,
+                            series_starts_in_how_many_games=-(
+                                team_1_already_won + team_2_already_won
+                            ),
                         )
-                    elif this_round == 4:
-                        team_1_record, team_2_record = curr_year.get_team_record(
-                            team_1
-                        ), curr_year.get_team_record(team_2)
-                        if team_1_record > team_2_record:
-                            probs_dict = self.predict_series(
-                                higher_seed_abb=team_1,
-                                lower_seed_abb=team_2,
-                                higher_already_won=team_1_already_won,
-                                lower_already_won=team_2_already_won,
-                                for_simulation=True,
-                                series_starts_in_how_many_games=-(
-                                    team_1_already_won + team_2_already_won
-                                ),
+                possible = []
+                probs = []
+                total_prob = dict()
+                for team, game_dict in probs_dict.items():
+                    total_prob.update({team: 0})
+                    for game, prob in game_dict.items():
+                        possible.append(
+                            (
+                                team,
+                                game,
                             )
-                        else:
-                            probs_dict = self.predict_series(
-                                higher_seed_abb=team_2,
-                                lower_seed_abb=team_1,
-                                higher_already_won=team_2_already_won,
-                                lower_already_won=team_1_already_won,
-                                for_simulation=True,
-                                series_starts_in_how_many_games=-(
-                                    team_1_already_won + team_2_already_won
-                                ),
-                            )
-                    possible = []
-                    probs = []
-                    total_prob = dict()
-                    for team, game_dict in probs_dict.items():
-                        total_prob.update({team: 0})
-                        for game, prob in game_dict.items():
-                            possible.append(
-                                (
-                                    team,
-                                    game,
-                                )
-                            )
-                            probs.append(prob)
-                            total_prob[team] += prob
-                    occurs = choices(possible, probs)[0]
-                    if occurs[0] == team_1:
-                        winner, loser = team_1, team_2
+                        )
+                        probs.append(prob)
+                        total_prob[team] += prob
+                occurs = choices(possible, probs)[0]
+                if occurs[0] == team_1:
+                    winner, loser = team_1, team_2
+                else:
+                    winner, loser = team_2, team_1
+                if team_1_already_won > team_2_already_won:
+                    if (team_1_already_won < 4) & (team_2_already_won < 4) & ((team_2_already_won != 0) & (team_1_already_won != 0)):
+                        if_in_proj = f"(Currently {team_1_already_won}-{team_2_already_won} {team_1})"
                     else:
-                        winner, loser = team_2, team_1
-                    if team_1_already_won > team_2_already_won:
-                        print(
-                            f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}% (Currently {team_1_already_won}-{team_2_already_won} {team_1})"
-                        )
-                    else:
-                        print(
-                            f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}% (Currently {team_2_already_won}-{team_1_already_won} {team_2})"
-                        )
-                    seeds = pd.concat(
-                        [
-                            seeds,
-                            pd.DataFrame({"SEED": [seed_reward], "TEAM_ABB": [winner]}),
-                        ]
-                    )
-                    games_from_now = 3
-            # if future round
-            else:
-                print(f"_____ROUND {this_round} SIMULATION_____")
-                matchups_split = self.script[round_str]
-                all_round_matchups = ["_".join(matchup) for matchup in matchups_split]
-                current_round = dict()
-                for matchup in all_round_matchups:
-                    match = [
-                        match for match in matchups_split if "_".join(match) == matchup
-                    ][0]
-                    current_round.update(
-                        {
-                            matchup: {
-                                seeds.query("SEED == @match[0]")
-                                .reset_index(drop=1)
-                                .TEAM_ABB[0]: 0,
-                                seeds.query("SEED == @match[1]")
-                                .reset_index(drop=1)
-                                .TEAM_ABB[0]: 0,
-                            }
-                        }
-                    )
-                for seed_reward, series_dict in current_round.items():
-                    both_teams = list(series_dict.keys())
-                    team_1, team_2 = both_teams[0], both_teams[1]
-                    team_1_seed = int(
-                        base_seeds.query("TEAM_ABB == @team_1")
-                        .reset_index(drop=1)
-                        .SEED[0][0]
-                    )
-                    team_2_seed = int(
-                        base_seeds.query("TEAM_ABB == @team_2")
-                        .reset_index(drop=1)
-                        .SEED[0][0]
-                    )
-                    if team_1_seed < team_2_seed:
-                        probs_dict = self.predict_series(
-                            higher_seed_abb=team_1,
-                            lower_seed_abb=team_2,
-                            higher_already_won=0,
-                            lower_already_won=0,
-                            for_simulation=True,
-                            series_starts_in_how_many_games=games_from_now,
-                        )
-                    elif team_1_seed > team_2_seed:
-                        probs_dict = self.predict_series(
-                            higher_seed_abb=team_2,
-                            lower_seed_abb=team_1,
-                            higher_already_won=0,
-                            lower_already_won=0,
-                            for_simulation=True,
-                            series_starts_in_how_many_games=games_from_now,
-                        )
-                    elif this_round == 4:
-                        team_1_record, team_2_record = curr_year.get_team_record(
-                            team_1
-                        ), curr_year.get_team_record(team_2)
-                        if team_1_record > team_2_record:
-                            probs_dict = self.predict_series(
-                                higher_seed_abb=team_1,
-                                lower_seed_abb=team_2,
-                                higher_already_won=team_1_already_won,
-                                lower_already_won=team_2_already_won,
-                                for_simulation=True,
-                                series_starts_in_how_many_games=games_from_now,
-                            )
-                        else:
-                            probs_dict = self.predict_series(
-                                higher_seed_abb=team_2,
-                                lower_seed_abb=team_1,
-                                higher_already_won=team_2_already_won,
-                                lower_already_won=team_1_already_won,
-                                for_simulation=True,
-                                series_starts_in_how_many_games=games_from_now,
-                            )
-                    possible = []
-                    probs = []
-                    total_prob = dict()
-                    for team, game_dict in probs_dict.items():
-                        total_prob.update({team: 0})
-                        for game, prob in game_dict.items():
-                            possible.append(
-                                (
-                                    team,
-                                    game,
-                                )
-                            )
-                            probs.append(prob)
-                            total_prob[team] += prob
-                    occurs = choices(possible, probs)[0]
-                    if occurs[0] == team_1:
-                        winner, loser = team_1, team_2
-                    else:
-                        winner, loser = team_2, team_1
+                        if_in_proj = ""
                     print(
-                        f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}%"
+                        f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
                     )
-                    seeds = pd.concat(
-                        [
-                            seeds,
-                            pd.DataFrame({"SEED": [seed_reward], "TEAM_ABB": [winner]}),
-                        ]
+                else:
+                    if (team_1_already_won < 4) & (team_2_already_won < 4) & ((team_2_already_won != 0) & (team_1_already_won != 0)):
+                        if_in_proj = f"(Currently {team_2_already_won}-{team_1_already_won} {team_2})"
+                    else:
+                        if_in_proj = ""
+                    print(
+                        f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
                     )
-                    games_from_now += 7
+                seeds = pd.concat(
+                    [
+                        seeds,
+                        pd.DataFrame({"SEED": [seed_reward], "TEAM_ABB": [winner]}),
+                    ]
+                )
+            if current_round_num == this_round:
+                games_from_now = 3
+            elif current_round_num > this_round:
+                games_from_now = 0
+            else:
+                games_from_now += 7
 
     def get_probs_of_each_round(self):
         base_seeds = self.get_base_seeds()
@@ -714,9 +603,12 @@ class current_state:
                         lower_already_won=lower_seed_won,
                         for_simulation=True,
                     )
-                    prob_higher_seed_wins = np.sum(
-                        list(predict_series_dict[higher_seed].values())
-                    )
+                    if higher_seed not in predict_series_dict.keys():
+                        prob_higher_seed_wins = 0
+                    else:
+                        prob_higher_seed_wins = np.sum(
+                            list(predict_series_dict[higher_seed].values())
+                        )
                     if higher_seed in prob_of_seed[seed_reward]:
                         prob_of_seed[seed_reward][higher_seed] += (
                             prob_higher_seed_wins * prob_of_matchup
