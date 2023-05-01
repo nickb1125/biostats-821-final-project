@@ -1,3 +1,4 @@
+"""Create helper file."""
 from nba_api.stats.static import teams, players
 import pandas as pd
 import datetime
@@ -5,33 +6,39 @@ from bs4 import BeautifulSoup
 import requests
 
 team_id_to_abb = pd.DataFrame(teams.get_teams()).rename(
-    columns={"full_name": "TEAM_NAME", "id": "TEAM_ID", "abbreviation": "TEAM_ABB"}
+    columns={"full_name": "TEAM_NAME",
+             "id": "TEAM_ID", "abbreviation": "TEAM_ABB"}
 )
 nba_team_ids = team_id_to_abb.TEAM_ID
 
 
 def team_abb_to_id(team_abb):
-    """Translates team abbreviation to id."""
+    """Translate team abbreviation to id."""
     try:
         return (
-            team_id_to_abb.query("TEAM_ABB == @team_abb").reset_index(drop=1).TEAM_ID[0]
+            team_id_to_abb.query(
+                "TEAM_ABB == @team_abb").reset_index(drop=1).TEAM_ID[0]
         )
     except KeyError:
-        raise KeyError(f"User has input non-valid team abbreviation: {team_abb}")
+        raise KeyError(
+            f"User has input non-valid team abbreviation: {team_abb}")
 
 
 def team_id_to_abb_conv(team_id):
-    """Translates team id to abb."""
+    """Translate team id to abb."""
     try:
         return (
-            team_id_to_abb.query("TEAM_ID == @team_id").reset_index(drop=1).TEAM_ABB[0]
+            team_id_to_abb.query(
+                "TEAM_ID == @team_id").reset_index(drop=1).TEAM_ABB[0]
         )
     except KeyError:
         raise KeyError(f"User has input non-valid team id: {team_id}")
 
 
 def scrape_current_nba_injuries(games_ahead_of_now):
-    player_ids = pd.DataFrame(players.get_active_players())[["id", "full_name"]].rename(
+    """Scrape injuries."""
+    player_ids = pd.DataFrame(
+        players.get_active_players())[["id", "full_name"]].rename(
         columns={"full_name": "PLAYER_NAME", "id": "PLAYER_ID"}
     )
     url = "https://www.cbssports.com/nba/injuries/"
@@ -47,7 +54,8 @@ def scrape_current_nba_injuries(games_ahead_of_now):
         row = []
         for td in tr.find_all("td"):
             try:
-                row.append(td.find("span", class_="CellPlayerName--long").text.strip())
+                row.append(td.find("span",
+                                   class_="CellPlayerName--long").text.strip())
             except AttributeError:
                 row.append(td.text.strip())
         data.append(row)
@@ -56,7 +64,8 @@ def scrape_current_nba_injuries(games_ahead_of_now):
     # create a Pandas dataframe from the injury data and return it
     df = pd.DataFrame(
         data,
-        columns=["PLAYER_NAME", "POSITION", "UPDATED", "TYPE", "EXPECTED_WHEN_BACK"],
+        columns=["PLAYER_NAME",
+                 "POSITION", "UPDATED", "TYPE", "EXPECTED_WHEN_BACK"],
     )
 
     # clean
@@ -66,7 +75,8 @@ def scrape_current_nba_injuries(games_ahead_of_now):
             + str(f" {datetime.datetime.now().year}"),
             "%b %d %Y",
         )
-        if (when_back != "Game Time Decision") and (when_back != "Out for the season")
+        if (when_back != "Game Time Decision")
+        and (when_back != "Out for the season")
         else datetime.datetime.now() + datetime.timedelta(days=365)
         if (when_back == "Out for the season")
         else datetime.datetime.now() + datetime.timedelta(days=2)
@@ -80,6 +90,7 @@ def scrape_current_nba_injuries(games_ahead_of_now):
 
 
 def scrape_nba_playoff_projections():
+    """Scrape playoff projections."""
     team_ids = pd.DataFrame(teams.get_teams())[["id", "full_name"]].rename(
         columns={"full_name": "TEAM_NAME", "id": "TEAM_ID"}
     )
