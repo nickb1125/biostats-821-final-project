@@ -104,11 +104,11 @@ class current_state:
         ].copy()
         games_thus_far = (
             games_thus_far.merge(
-                seeds, left_on="TEAM_ABBREVIATION_H", right_on="TEAM_ABB"
+                seeds, left_on="TEAM_ABBREVIATION_H", right_on="TEAM_ABB", how = "left"
             )
             .rename(columns={"SEED": "SEED_H"})
             .drop(["TEAM_ABB"], axis=1)
-            .merge(seeds, left_on="TEAM_ABBREVIATION_A", right_on="TEAM_ABB")
+            .merge(seeds, left_on="TEAM_ABBREVIATION_A", right_on="TEAM_ABB", how = "left")
             .rename(columns={"SEED": "SEED_A"})
             .drop(["TEAM_ABB"], axis=1)
             .copy()
@@ -117,20 +117,29 @@ class current_state:
             row.TEAM_ABBREVIATION_H if row.OUTCOME == 1 else row.TEAM_ABBREVIATION_A
             for _, row in games_thus_far.iterrows()
         ]
-        games_thus_far
         got_this_far = True
         current_round_state = {"R0": self.get_current_max_playoff_seed_probs()}
         for round in ["R1", "R2", "R3", "R4"]:
             matchups = self.script[round]
             current_round_state.update({round: dict()})
             for matchup in matchups:
-                games_in_this_matchup = games_thus_far.query(
-                    "(SEED_H == @matchup[0] & SEED_A == @matchup[1]) or (SEED_H == @matchup[1] & SEED_A == @matchup[0])"
-                )
+                if round == "R1":
+                    games_in_this_matchup = games_thus_far.query(
+                        "(SEED_H == @matchup[0] & SEED_A == @matchup[1]) or (SEED_H == @matchup[1] & SEED_A == @matchup[0])"
+                    ).copy()
+                    team_1_abb = games_in_this_matchup.TEAM_ABBREVIATION_H.unique()[0]
+                    team_2_abb = games_in_this_matchup.TEAM_ABBREVIATION_A.unique()[0]
+                else:
+                    previous_round = current_round_state["R" + str(int(round[1]) - 1)]
+                    team_1_abb = [k for k, v in previous_round[matchup[0]].items() if v == 4][0]
+                    team_2_abb = [k for k, v in previous_round[matchup[1]].items() if v == 4][0]
+                    games_in_this_matchup = games_thus_far.query(
+                        "(TEAM_ABBREVIATION_H == @team_1_abb & TEAM_ABBREVIATION_A == @team_2_abb) or (TEAM_ABBREVIATION_H == @team_2_abb & TEAM_ABBREVIATION_H == @team_1_abb)"
+                    ).copy()
                 matchup_status = dict(games_in_this_matchup.WINNER.value_counts())
                 for team in [
-                    games_in_this_matchup.TEAM_ABBREVIATION_A.unique()[0],
-                    games_in_this_matchup.TEAM_ABBREVIATION_H.unique()[0],
+                    team_1_abb,
+                    team_2_abb,
                 ]:
                     if team not in matchup_status.keys():
                         matchup_status.update({team: 0})
@@ -142,7 +151,7 @@ class current_state:
                     if value == 4:
                         finished = True
                         new_seed = pd.DataFrame(
-                            {"Seed": [matchup[0] + "_" + matchup[1]], "TEAM_ABB": [key]}
+                            {"SEED": [matchup[0] + "_" + matchup[1]], "TEAM_ABB": [key]}
                         )
                         seeds = pd.concat([seeds, new_seed])
                 if not finished:
