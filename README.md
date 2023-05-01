@@ -21,7 +21,9 @@ export PYTHONPATH="{INSERT PATH TO CLONED REPO"}"
 The command line interface includes four main commands:
 
 **1. Predict Theoretical Playoff Game**
-Command: python3 cli/interface.py predict_game 
+```
+python3 cli/interface.py --predict_matchup
+```
 
 The interface will prompt the user for (1) the abbreviation of the home team, (2) the abbreviation of the away team, and (3) how many days from today the game will be played in.
 
@@ -32,7 +34,9 @@ Output will look like the following:
 ```
 
 **2. Predict Theoretical Playoff Series**
-Command: python3 cli/interface.py predict_series
+```
+python3 cli/interface.py --predict_series
+```
 
 The interface will prompt the user for (1) the abbreviation of the higher seed, (2) the abbreviation of the lower seed, (3) how many games the higer seed has already won, (4) how many games the lower seed has already won, and (5) how many days from today the next game of the series will be played in. Each round winning probabilities will be output for both teams.
 
@@ -55,7 +59,9 @@ __________Total Probabilities__________
 ```
 
 **3. True Playoff Simulator**
-Command: python3 cli/interface.py simulate_playoffs
+```
+python3 cli/interface.py --simulate_playoffs_from_this_point
+```
 
 Simulates playoff situation from this CURRENT point in the season, accounting for injury projections. Updates each time you call the function.
 
@@ -90,7 +96,9 @@ DEN wins DEN-PHX in 6 with probability 88.51%
 ```
 
 **4. True Playoff Round Probability Calculator**
-Command: python3 cli/interface.py simulate_playoffs get_probs_of_each_round
+```
+python3 cli/interface.py --get_probs_of_each_round
+```
 
 Calculates each teams CURRENT probability of winning each round of NBA playoffs based on regular season features. Does so throigh conditional and cumulative probability calculation as opposed to bootstrapping for faster results. Updates each time you call the function.
 
