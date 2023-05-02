@@ -8,6 +8,14 @@ This project is a Python-based NBA playoff outcome predictor that utilizes machi
 
 A quick note: all data updates happen in real time, and rerunning requests will change as the NBA landscape changes throughout the playoffs. All data aquisition is done through NBA API, and real time cleaning and updates are done in objects/year.py as well as objects/current_state.py.
 
+Another quick note: Most functions require you refer to teams by their abbreviation. Possible abbreviations include:
+
+```
+'PHI' 'LAL' 'ORL' 'WAS' 'HOU' 'NOP' 'CHI' 'CLE' 'NYK' 'OKC' 'CHA' 'DEN'
+'DAL' 'POR' 'MIL' 'LAC' 'SAS' 'TOR' 'BOS' 'DET' 'MEM' 'UTA' 'PHX' 'MIN'
+'SAC' 'IND' 'BKN' 'GSW' 'ATL' and 'MIA'
+```
+
 ### Installation
 
 To use the predictor, you must have Python 3.6 or higher installed. First, clone the repository to your local machine and install requirements. Also set your PYTHONPATH appropriately if neccecary:
