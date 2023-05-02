@@ -14,8 +14,8 @@ To use the predictor, you must have Python 3.6 or higher installed. First, clone
 
 ```
 git clone https://github.com/wpowell31/biostats-821-final-project
-pip install -r requirements.txt
 export PYTHONPATH="{INSERT PATH TO CLONED REPO"}"
+pip install -r requirements.txt
 ```
 
 ### Main Functionality
