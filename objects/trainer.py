@@ -3,19 +3,27 @@ import datetime
 import time
 from objects.year import year
 
+
 class training_dataset:
+    """Create training dataset class."""
+
     def __init__(self, since=2000):
+        """Initialize class."""
         self.training_sets_cache = dict()
         self.years_cache = dict()
         self.since = since
         print(
-            f"Loading NBA data from {self.since} until {datetime.datetime.now().year - 2}..."
+            f"Load data from {self.since}, {datetime.datetime.now().year - 2}"
         )
         self.load_year_data()
 
     def get_training_dataset(
-        self, injury_adjusted: bool, avg_minutes_played_cutoff: int, force_update: bool
+        self,
+        injury_adjusted: bool,
+        avg_minutes_played_cutoff: int,
+        force_update: bool
     ):
+        """Get training dataset."""
         settings_string = f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}"
         if (force_update == True) or (
             self.since not in self.training_sets_cache.keys()

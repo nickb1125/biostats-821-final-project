@@ -10,7 +10,10 @@ import pandas as pd
 from random import choices
 
 class current_state:
+    """Define current state class."""
+
     def __init__(self):
+        """Initialize."""
         if datetime.datetime.now().month <= 8:
             self.year = datetime.datetime.now().year - 1
         else:
@@ -50,7 +53,7 @@ class current_state:
         }
 
     def print_current_team_injuries(self, team_id, games_ahead_of_today):
-        """Prints current team injuries"""
+        """Print current team injuries."""
         all_injuries = scrape_current_nba_injuries(games_ahead_of_today)
         this_year = self.get_current_year_class.get("current")
         players_this_team = (
@@ -66,7 +69,7 @@ class current_state:
         return injured_players
 
     def get_current_max_playoff_seed_probs(self):
-        """Gets teams with max probability of each seed in tourney."""
+        """Get teams with max probability of each seed in tourney."""
         seeds = self.get_playoff_picture_liklihood()
         ret = dict()
         for team_abb, seed_dict in seeds.items():
@@ -84,7 +87,7 @@ class current_state:
         return ret
 
     def get_base_seeds(self):
-        """Gets base seeds for simulation"""
+        """Get base seeds for simulation."""
         current_round_state = self.get_current_max_playoff_seed_probs()
         seeds = []
         for key, this_dict in current_round_state.items():
@@ -96,7 +99,10 @@ class current_state:
         return seeds
 
     def get_current_tourney_state(self):
-        """Gets the state of the tournement currently. If hasnt started just gets max seed probs."""
+        """Get the state of the tournement currently.
+
+        If hasnt started just gets max seed probs.
+        """
         seeds = self.get_base_seeds()
         this_year = self.year_class.get("current")
         games_thus_far = this_year.playoff_game_data[
@@ -152,7 +158,7 @@ class current_state:
         return current_round_state
 
     def get_playoff_picture_liklihood(self):
-        """Gets all probabilities of seeds for tourney."""
+        """Get all probabilities of seeds for tourney."""
         playoff_proj = scrape_nba_playoff_projections()
         west = playoff_proj["West"]
         east = playoff_proj["East"]
@@ -187,11 +193,12 @@ class current_state:
 
     @property
     def get_current_year_class(self):
+        """Get current year."""
         if len(self.year_class.keys()) == 0:
             self.year_class.update({"current": year(self.year)})
         return self.year_class
 
-    def predict_matchup(self, home_abb, away_abb, games_ahead_of_today=0, for_simulation = True):
+    def predict_matchup(self, home_abb, away_abb, games_ahead_of_today=0, for_simulation=True):
         """Predicts upcoming matchup."""
         home_id, away_id = team_abb_to_id(home_abb), team_abb_to_id(away_abb)
         features = self.year_class.get("current").get_features_for_upcoming(
@@ -276,7 +283,7 @@ class current_state:
             )
 
             print(
-                f"""Injured for {higher_seed_abb}: 
+                f"""Injured for {higher_seed_abb}:
             \n --->Projected Game 1:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games)}
             \n --->Projected Game 2:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games + 1)}
             \n --->Projected Game 3:{self.print_current_team_injuries(higher_id, games_ahead_of_today = series_starts_in_how_many_games + 2)}
@@ -287,7 +294,7 @@ class current_state:
             )
 
             print(
-                f"""Injured for {lower_seed_abb}: 
+                f"""Injured for {lower_seed_abb}:
             \n --->Projected Game 1:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games)}
             \n --->Projected Game 2:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games + 1)}
             \n --->Projected Game 3:{self.print_current_team_injuries(lower_id, games_ahead_of_today = series_starts_in_how_many_games + 2)}
@@ -395,7 +402,7 @@ class current_state:
             return outcomes
 
     def simulate_playoffs_from_this_point(self):
-        """Simulates playoffs."""
+        """Simulate playoffs."""
         print(f"Simulating {self.year} NBA-playoffs")
         print(f"_____Pre-Playoffs_____")
         current_state = self.get_current_tourney_state()
@@ -547,6 +554,7 @@ class current_state:
                 games_from_now += 7
 
     def get_probs_of_each_round(self):
+        """Get round probabilities."""
         base_seeds = self.get_base_seeds()
         current_state = self.get_current_tourney_state()
         prob_of_seed = {row.SEED: {row.TEAM_ABB: 1} for _, row in base_seeds.iterrows()}

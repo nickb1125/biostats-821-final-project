@@ -8,8 +8,12 @@ import time
 import math
 import numpy as np
 
+
 class year:
+    """Create year class."""
+
     def __init__(self, year):
+        """Initialize year class."""
         self.year = year
         next_year_abb = str(self.year - 1999)
         if len(next_year_abb) == 1:
@@ -38,6 +42,7 @@ class year:
 
     @property
     def roster_info(self):
+        """Define roster info."""
         if (self.roster_info_cache.empty) or (
             (datetime.datetime.now().year in [self.year, self.year + 1])
             and (
@@ -141,7 +146,7 @@ class year:
 
     @property
     def regular_boxes(self) -> None:
-        """Set regular season player box summaries"""
+        """Set regular season player box summaries."""
         if self.regular_boxes_cache.shape[0] == 0:
             print(
                 "---->Loading regular season player box data for this year for the first time..."
@@ -172,6 +177,7 @@ class year:
 
     @property
     def regular_boxes_summary(self):
+        """Get box scores summary."""
         regular_boxes = self.regular_boxes.copy()
         regular_boxes_summary = (
             regular_boxes[
@@ -366,6 +372,7 @@ class year:
         return self.playoff_boxes_cache
 
     def get_playoff_results_up_to_date(self, date: str):  # Input string as "%Y-%m-%d"
+        """Get current playoff results."""
         return self.playoff_game_data.query("GAME_DATE < @date")
 
     def get_team_rosters_from_regular_season(self):
@@ -421,7 +428,7 @@ class year:
     def reweight_replacements_for_missing_player(
         self, possible_replacement_player_ids, remove_injured, injured_player_id
     ):
-        """Reweights replacement players for ONE missing player"""
+        """Reweights replacement players for ONE missing player."""
         if len(possible_replacement_player_ids) == 0:
             raise KeyError("No valid replacements.")
         team_id = remove_injured.reset_index(drop=1).TEAM_ID[0]
@@ -485,6 +492,7 @@ class year:
         return replacement_df
 
     def get_team_record(self, team_abb):
+        """Get win loss record."""
         home_games = np.array(
             self.game_data.query("TEAM_ABBREVIATION_H == 'BOS'").OUTCOME
         )
@@ -614,11 +622,11 @@ class year:
         return players_summary.drop(["TEAM_ID", "PLUS_MINUS_mean"], axis=1)
 
     def get_home_win_percentage(self, team_id):
-        """Get home win percentage for team"""
+        """Get home win percentage for team."""
         return self.game_data.query("TEAM_ID_H == @team_id").OUTCOME.mean()
 
     def get_away_win_percentage(self, team_id):
-        """Get away win percentage for team"""
+        """Get away win percentage for team."""
         return 1 - self.game_data.query("TEAM_ID_A == @team_id").OUTCOME.mean()
 
     def feature_creator(
@@ -630,6 +638,7 @@ class year:
         avg_minutes_played_cutoff,
         games_ahead_of_today,
     ):
+        """Define feature creator."""
         if injury_adjusted:
             home_reweighted = (
                 self.reweight_stats(
