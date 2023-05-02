@@ -83,9 +83,7 @@ class year:
             all_games = (
                 endpoints.leaguegamefinder.LeagueGameFinder(
                     season_type_nullable=SeasonType.regular, season_nullable=self.season
-                )
-                .get_data_frames()[0]
-                .query("TEAM_ID in @nba_team_ids")
+                ).get_data_frames()[0].query("TEAM_ID in @nba_team_ids").query("WL.notna()")
             )
             self.update_timestamp_game_data = datetime.datetime.now()
             time.sleep(2)
@@ -222,9 +220,7 @@ class year:
                 endpoints.leaguegamefinder.LeagueGameFinder(
                     season_type_nullable=SeasonTypePlayoffs.playoffs,
                     season_nullable=self.season,
-                )
-                .get_data_frames()[0]
-                .query("TEAM_ID in @nba_team_ids")
+                ).get_data_frames()[0].query("TEAM_ID in @nba_team_ids").query("WL.notna()")
             )
             time.sleep(2)
         elif (datetime.datetime.now().year in [self.year, self.year + 1]) and (

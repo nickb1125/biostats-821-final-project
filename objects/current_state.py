@@ -134,7 +134,7 @@ class current_state:
                     team_1_abb = [k for k, v in previous_round[matchup[0]].items() if v == 4][0]
                     team_2_abb = [k for k, v in previous_round[matchup[1]].items() if v == 4][0]
                     games_in_this_matchup = games_thus_far.query(
-                        "(TEAM_ABBREVIATION_H == @team_1_abb & TEAM_ABBREVIATION_A == @team_2_abb) or (TEAM_ABBREVIATION_H == @team_2_abb & TEAM_ABBREVIATION_H == @team_1_abb)"
+                        "(TEAM_ABBREVIATION_H == @team_1_abb & TEAM_ABBREVIATION_A == @team_2_abb) or (TEAM_ABBREVIATION_H == @team_2_abb & TEAM_ABBREVIATION_A == @team_1_abb)"
                     ).copy()
                 matchup_status = dict(games_in_this_matchup.WINNER.value_counts())
                 for team in [
@@ -527,20 +527,20 @@ class current_state:
                 else:
                     winner, loser = team_2, team_1
                 if team_1_already_won > team_2_already_won:
-                    if (team_1_already_won < 4) & (team_2_already_won < 4) & ((team_2_already_won != 0) & (team_1_already_won != 0)):
-                        if_in_proj = f"(Currently {team_1_already_won}-{team_2_already_won} {team_1})"
+                    if (team_1_already_won < 4) & (team_2_already_won < 4) & ((team_1_already_won != 0) | (team_2_already_won != 0)):
+                        if_in_proj = f" (Currently {team_1_already_won}-{team_2_already_won} {team_1})"
                     else:
                         if_in_proj = ""
                     print(
-                        f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
+                        f"{winner} wins {winner}-{loser} in {occurs[1]} with overall probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
                     )
                 else:
-                    if (team_1_already_won < 4) & (team_2_already_won < 4) & ((team_2_already_won != 0) & (team_1_already_won != 0)):
-                        if_in_proj = f"(Currently {team_2_already_won}-{team_1_already_won} {team_2})"
+                    if (team_1_already_won < 4) & (team_2_already_won < 4) & (team_1_already_won != 0) | (team_2_already_won != 0):
+                        if_in_proj = f" (Currently {team_2_already_won}-{team_1_already_won} {team_2})"
                     else:
                         if_in_proj = ""
                     print(
-                        f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
+                        f"{winner} wins {winner}-{loser} in {occurs[1]} with overall probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
                     )
                 seeds = pd.concat(
                     [
@@ -589,6 +589,8 @@ class current_state:
                 prob_of_seed.update({seed_reward: dict()})
                 for possible_matchup, prob_of_matchup in prob_of_matchups_dict.items():
                     higher_seed, lower_seed = possible_matchup[:3], possible_matchup[4:]
+                    if prob_of_matchup == 0:
+                        continue
                     if seed_reward in current_state[this_round].keys():
                         current_state_of_matchup = current_state[this_round][
                             seed_reward
