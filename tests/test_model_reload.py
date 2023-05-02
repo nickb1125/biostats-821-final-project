@@ -4,7 +4,10 @@
 import unittest
 from unittest.mock import patch
 from objects.model_reload import model_retrain
+from objects.model import XGBoostModel
+import __main__
 
+__main__.XGBoostModel = XGBoostModel
 
 class TestModelRetrain(unittest.TestCase):
 
