@@ -1,8 +1,6 @@
 # -*- coding: utf-8 -*-
 # @Project:final project
-# @email: 2997260832@qq.com
-# @author: ShuYue
-# @Created on 2023/4/28-9:57
+
 import unittest
 from unittest.mock import patch
 from objects.model_reload import model_retrain
