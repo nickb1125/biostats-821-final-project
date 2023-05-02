@@ -17,7 +17,7 @@ def model_retrain():
             )
             if update_model == "Yes" or update_model == "No":
                 break
-            print("Invalid input. Must be 'Yes' or 'No'. Please try again.")
+            raise SystemExit("Improper user input.")
         if update_model == "Yes":
             update_model = True
         else:
