@@ -5,15 +5,18 @@ from objects.year import year
 
 
 class training_dataset:
-    """Create training dataset class."""
+
+    """Define training dataset."""
 
     def __init__(self, since=2000):
-        """Initialize class."""
+        """Initialize."""
         self.training_sets_cache = dict()
         self.years_cache = dict()
         self.since = since
         print(
+
             f"Load data from {self.since}, {datetime.datetime.now().year - 2}"
+
         )
         self.load_year_data()
 
@@ -23,16 +26,19 @@ class training_dataset:
         avg_minutes_played_cutoff: int,
         force_update: bool
     ):
+
         """Get training dataset."""
         settings_string = f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}"
         if (force_update == True) or (
             self.since not in self.training_sets_cache.keys()
         ):
+
             self.load_train_data(
                 injury_adjusted=injury_adjusted,
                 avg_minutes_played_cutoff=avg_minutes_played_cutoff,
             )
-        elif settings_string not in self.training_sets_cache.get(self.since).keys():
+        elif settings_string not in (
+         self.training_sets_cache.get(self.since).keys()):
             self.load_train_data(
                 injury_adjusted=injury_adjusted,
                 avg_minutes_played_cutoff=avg_minutes_played_cutoff,
@@ -61,11 +67,14 @@ class training_dataset:
     ) -> None:
         """Load training and outcomes for all years."""
         print(
-            f"Loading training data for years from from {self.since} until {datetime.datetime.now().year - 2}..."
+            (f"Loading training data for years from from {self.since}"
+             f"until {datetime.datetime.now().year - 2}...")
         )
         for year_load in range(self.since, datetime.datetime.now().year - 2):
             print(
-                f"---->Loading training for {year_load} with injury_adjustments = {injury_adjusted} and avg_minutes_played_cutoff = {avg_minutes_played_cutoff}..."
+                (f"---->Loading training for {year_load} "
+                 f"with injury_adjustments = {injury_adjusted}"
+                 f"avg_minutes_played_cutoff = {avg_minutes_played_cutoff}...")
             )
             training = self.year(year_load).get_train_for_all_playoff_games(
                 injury_adjusted=injury_adjusted,
@@ -75,13 +84,17 @@ class training_dataset:
                 self.training_sets_cache.update(
                     {
                         year_load: {
-                            f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}": training
+                            (f"injury_adjusted = {injury_adjusted}"
+                             f"avg_mins_cutoff = {avg_minutes_played_cutoff}"
+                             ): training
                         }
                     }
                 )
             else:
                 self.training_sets_cache.get(year_load).update(
                     {
-                        f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}": training
+                        (f"injury_adjusted = {injury_adjusted}"
+                         f"avg_mins_cutoff = {avg_minutes_played_cutoff}"
+                         ): training
                     }
                 )

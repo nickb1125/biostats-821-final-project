@@ -110,11 +110,11 @@ class current_state:
         ].copy()
         games_thus_far = (
             games_thus_far.merge(
-                seeds, left_on="TEAM_ABBREVIATION_H", right_on="TEAM_ABB"
+                seeds, left_on="TEAM_ABBREVIATION_H", right_on="TEAM_ABB", how = "left"
             )
             .rename(columns={"SEED": "SEED_H"})
             .drop(["TEAM_ABB"], axis=1)
-            .merge(seeds, left_on="TEAM_ABBREVIATION_A", right_on="TEAM_ABB")
+            .merge(seeds, left_on="TEAM_ABBREVIATION_A", right_on="TEAM_ABB", how = "left")
             .rename(columns={"SEED": "SEED_A"})
             .drop(["TEAM_ABB"], axis=1)
             .copy()
@@ -123,20 +123,29 @@ class current_state:
             row.TEAM_ABBREVIATION_H if row.OUTCOME == 1 else row.TEAM_ABBREVIATION_A
             for _, row in games_thus_far.iterrows()
         ]
-        games_thus_far
         got_this_far = True
         current_round_state = {"R0": self.get_current_max_playoff_seed_probs()}
         for round in ["R1", "R2", "R3", "R4"]:
             matchups = self.script[round]
             current_round_state.update({round: dict()})
             for matchup in matchups:
-                games_in_this_matchup = games_thus_far.query(
-                    "(SEED_H == @matchup[0] & SEED_A == @matchup[1]) or (SEED_H == @matchup[1] & SEED_A == @matchup[0])"
-                )
+                if round == "R1":
+                    games_in_this_matchup = games_thus_far.query(
+                        "(SEED_H == @matchup[0] & SEED_A == @matchup[1]) or (SEED_H == @matchup[1] & SEED_A == @matchup[0])"
+                    ).copy()
+                    team_1_abb = games_in_this_matchup.TEAM_ABBREVIATION_H.unique()[0]
+                    team_2_abb = games_in_this_matchup.TEAM_ABBREVIATION_A.unique()[0]
+                else:
+                    previous_round = current_round_state["R" + str(int(round[1]) - 1)]
+                    team_1_abb = [k for k, v in previous_round[matchup[0]].items() if v == 4][0]
+                    team_2_abb = [k for k, v in previous_round[matchup[1]].items() if v == 4][0]
+                    games_in_this_matchup = games_thus_far.query(
+                        "(TEAM_ABBREVIATION_H == @team_1_abb & TEAM_ABBREVIATION_A == @team_2_abb) or (TEAM_ABBREVIATION_H == @team_2_abb & TEAM_ABBREVIATION_A == @team_1_abb)"
+                    ).copy()
                 matchup_status = dict(games_in_this_matchup.WINNER.value_counts())
                 for team in [
-                    games_in_this_matchup.TEAM_ABBREVIATION_A.unique()[0],
-                    games_in_this_matchup.TEAM_ABBREVIATION_H.unique()[0],
+                    team_1_abb,
+                    team_2_abb,
                 ]:
                     if team not in matchup_status.keys():
                         matchup_status.update({team: 0})
@@ -148,7 +157,7 @@ class current_state:
                     if value == 4:
                         finished = True
                         new_seed = pd.DataFrame(
-                            {"Seed": [matchup[0] + "_" + matchup[1]], "TEAM_ABB": [key]}
+                            {"SEED": [matchup[0] + "_" + matchup[1]], "TEAM_ABB": [key]}
                         )
                         seeds = pd.concat([seeds, new_seed])
                 if not finished:
@@ -525,20 +534,20 @@ class current_state:
                 else:
                     winner, loser = team_2, team_1
                 if team_1_already_won > team_2_already_won:
-                    if (team_1_already_won < 4) & (team_2_already_won < 4) & ((team_2_already_won != 0) & (team_1_already_won != 0)):
-                        if_in_proj = f"(Currently {team_1_already_won}-{team_2_already_won} {team_1})"
+                    if (team_1_already_won < 4) & (team_2_already_won < 4) & ((team_1_already_won != 0) | (team_2_already_won != 0)):
+                        if_in_proj = f" (Currently {team_1_already_won}-{team_2_already_won} {team_1})"
                     else:
                         if_in_proj = ""
                     print(
-                        f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
+                        f"{winner} wins {winner}-{loser} in {occurs[1]} with overall probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
                     )
                 else:
-                    if (team_1_already_won < 4) & (team_2_already_won < 4) & ((team_2_already_won != 0) & (team_1_already_won != 0)):
-                        if_in_proj = f"(Currently {team_2_already_won}-{team_1_already_won} {team_2})"
+                    if (team_1_already_won < 4) & (team_2_already_won < 4) & (team_1_already_won != 0) | (team_2_already_won != 0):
+                        if_in_proj = f" (Currently {team_2_already_won}-{team_1_already_won} {team_2})"
                     else:
                         if_in_proj = ""
                     print(
-                        f"{winner} wins {winner}-{loser} in {occurs[1]} with probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
+                        f"{winner} wins {winner}-{loser} in {occurs[1]} with overall probability {round(total_prob[winner]*100, 2)}%" + if_in_proj
                     )
                 seeds = pd.concat(
                     [
@@ -588,6 +597,8 @@ class current_state:
                 prob_of_seed.update({seed_reward: dict()})
                 for possible_matchup, prob_of_matchup in prob_of_matchups_dict.items():
                     higher_seed, lower_seed = possible_matchup[:3], possible_matchup[4:]
+                    if prob_of_matchup == 0:
+                        continue
                     if seed_reward in current_state[this_round].keys():
                         current_state_of_matchup = current_state[this_round][
                             seed_reward
