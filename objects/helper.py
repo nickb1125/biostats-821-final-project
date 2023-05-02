@@ -86,7 +86,7 @@ def scrape_current_nba_injuries(games_ahead_of_now):
     gametime_date = datetime.datetime.now() + datetime.timedelta(
         days=(games_ahead_of_now * 2)
     )  # assume two days between playoff games on average
-    return ret.query("EXPECTED_WHEN_BACK > @gametime_date")
+    return ret.query("(PLAYER_ID.notna()) & (EXPECTED_WHEN_BACK > @gametime_date)")
 
 
 def scrape_nba_playoff_projections():
