@@ -215,6 +215,12 @@ There are also various helper functions contained in objects/helper.py that simp
 
 It is produced with the argparse library.
 
+## Testing
+
+To run test files, simply run...
+```
+python3 -m unittest tests/{intert test file}.py
+```
 
 ## Credits
 
