@@ -58,6 +58,7 @@ parser.add_argument('--predict_series', action='store_true', help='Predict the w
 parser.add_argument('--simulate_playoffs_from_this_point', action='store_true', help='Simulate the playoffs from a certain point')
 parser.add_argument('--get_probs_of_each_round', action='store_true', help='Get the probability of each team making it to each round')
 parser.add_argument('--predict_matchup', action='store_true', help='Predict the winner of a playoff matchup')
+parser.add_argument('--model_retrain', action='store_true', help='Retrain stored model.')
 
 args = parser.parse_args()
 
@@ -72,3 +73,6 @@ if args.get_probs_of_each_round:
     
 if args.predict_matchup:
     predict_matchup()
+
+if args.model_retrain:
+    model_retrain()
