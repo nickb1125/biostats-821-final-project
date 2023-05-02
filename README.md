@@ -6,6 +6,8 @@
 
 This project is a Python-based NBA playoff outcome predictor that utilizes machine learning to predict game outcomes and playoff picture results. It features a command line interface that users can install and use to create inquiries for games and playoffs.
 
+A quick note: all data updates happen in real time, and rerunning requests will change as the NBA landscape changes throughout the playoffs. All data aquisition is done through NBA API, and real time cleaning and updates are done in objects/year.py as well as objects/current_state.py.
+
 ### Installation
 
 To use the predictor, you must have Python 3.6 or higher installed. First, clone the repository to your local machine and install requirements. Also set your PYTHONPATH appropriately if neccecary:
