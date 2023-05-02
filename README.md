@@ -16,6 +16,8 @@ Another quick note: Most functions require you refer to teams by their abbreviat
 'SAC' 'IND' 'BKN' 'GSW' 'ATL' and 'MIA'
 ```
 
+Finally, note that your first ever request will take ~20 seconds, but following requests should repond in under a second.
+
 ### Installation
 
 To use the predictor, you must have Python 3.6 or higher installed. First, clone the repository to your local machine and install requirements. Also set your PYTHONPATH appropriately if neccecary:
@@ -229,6 +231,8 @@ To run test files, simply run...
 ```
 python3 -m unittest tests/{insert test file}.py
 ```
+
+Note that some tests may take a while, as they require retraining models...
 
 ## Credits
 
