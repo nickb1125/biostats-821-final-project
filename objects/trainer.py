@@ -5,6 +5,7 @@ from objects.year import year
 
 
 class training_dataset:
+
     """Define training dataset."""
 
     def __init__(self, since=2000):
@@ -13,10 +14,9 @@ class training_dataset:
         self.years_cache = dict()
         self.since = since
         print(
-            (
-                f"Loading NBA data from {self.since}"
-                f"until {datetime.datetime.now().year - 2}..."
-            )
+
+            f"Load data from {self.since}, {datetime.datetime.now().year - 2}"
+
         )
         self.load_year_data()
 
@@ -26,13 +26,13 @@ class training_dataset:
         avg_minutes_played_cutoff: int,
         force_update: bool
     ):
-        """Get train data."""
-        settings_string = (
-            f"injury_adjusted = {injury_adjusted}, "
-            f"avg_minutes_played_cutoff = {avg_minutes_played_cutoff}"
-        )
-        if ((force_update) or
-           (self.since not in self.training_sets_cache.keys())):
+
+        """Get training dataset."""
+        settings_string = f"injury_adjusted = {injury_adjusted}, avg_minutes_played_cutoff = {avg_minutes_played_cutoff}"
+        if (force_update == True) or (
+            self.since not in self.training_sets_cache.keys()
+        ):
+
             self.load_train_data(
                 injury_adjusted=injury_adjusted,
                 avg_minutes_played_cutoff=avg_minutes_played_cutoff,
