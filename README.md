@@ -219,7 +219,7 @@ It is produced with the argparse library.
 
 To run test files, simply run...
 ```
-python3 -m unittest tests/{intert test file}.py
+python3 -m unittest tests/{insert test file}.py
 ```
 
 ## Credits
