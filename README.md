@@ -178,7 +178,10 @@ BKN wins: 0.0%
 ### Help Functions
 
 **1. Model Reload**
-Command: python3 cli/interface.py model_reload
+
+```
+python3 cli/interface.py --model_retrain
+```
 
 The model included with the cloned reposity was trained on data from 2000 to 2021. If years have passed and you would like to update the model simply run this command and the model will be retrained with injury corrective and player hyperparameter tuning (see below section). You will be asked if you truly want to do this, as it may take more than 40 minutes to collect features and train the model.
 
@@ -190,7 +193,7 @@ The average number of minutes of the player that is out for injury or other reas
 
 **Objects and functions are each stored in their own files in the objects/ directory. Below is a description of each.**
 
-**year(season : int)**:** Object to updates data for a season within properties and calls methods for feature extraction for that year as well as injury adjustments.
+**year(season : int)**:** Object to update data a given season in real time. Contains properties and calls methods for feature extraction for that year as well as injury adjustments.
 
 **model_reload():** Function to reload and train model up to current year whenever called
 
