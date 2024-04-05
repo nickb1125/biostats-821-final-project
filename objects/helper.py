@@ -115,9 +115,9 @@ def scrape_nba_playoff_projections():
         map(
             lambda row: [
                 row[i] if row[i] != "" else 0.0
-                for i in [0, 9, 10, 11, 12, 13, 14, 15, 16]
+                for i in [0, 13, 14, 15, 16, 17, 18, 19, 20]
             ],
-            [row for row in data if len(row) == 21],
+            [row for row in data if len(row) == 31],
         )
     )
     headers = [
@@ -144,9 +144,9 @@ def scrape_nba_playoff_projections():
         map(
             lambda row: [
                 row[i] if row[i] != "" else 0.0
-                for i in [0, 9, 10, 11, 12, 13, 14, 15, 16]
+                for i in [0, 13, 14, 15, 16, 17, 18, 19, 20]
             ],
-            [row for row in data if len(row) == 21],
+            [row for row in data if len(row) == 31],
         )
     )
     data_w = pd.DataFrame(data, columns=headers).merge(

@@ -70,19 +70,25 @@ class current_state:
 
     def get_current_max_playoff_seed_probs(self):
         """Get teams with max probability of each seed in tourney."""
+        # Note for future: THIS NEEDS TO BE FIXED TO SIMULATE REMAINDER OF SEASON AS RIGHT NOW IT JUST TAKES MAX LIKELY SEEDS
         seeds = self.get_playoff_picture_liklihood()
         ret = dict()
+        already_taken = []
         for team_abb, seed_dict in seeds.items():
             team_seeds = []
             team_probs = []
             for seed, prob in seed_dict.items():
                 team_seeds.append(seed)
                 team_probs.append(prob)
-            if np.sum(team_probs) == 0:
+            taken_indecies = [i for i, x in enumerate(team_seeds.copy()) if x in already_taken]
+            team_seeds = [team_seeds[i] for i in range(len(team_seeds)) if i not in taken_indecies]
+            team_probs = [team_probs[i] for i in range(len(team_probs)) if i not in taken_indecies]
+            if len(team_probs) == 0:
                 continue
             seed_choice = team_seeds[team_probs.index(max(team_probs))]
             with_prob = seed_dict[seed_choice]
             seed_choice = seed_choice.replace("_SEED", "")
+            already_taken.append(seed_choice)
             ret.update({seed_choice: {team_abb: with_prob}})
         return ret
 
@@ -125,6 +131,8 @@ class current_state:
         ]
         got_this_far = True
         current_round_state = {"R0": self.get_current_max_playoff_seed_probs()}
+        if len(games_thus_far) == 0:
+            return current_round_state
         for round in ["R1", "R2", "R3", "R4"]:
             matchups = self.script[round]
             current_round_state.update({round: dict()})
@@ -181,8 +189,8 @@ class current_state:
             "7_SEED_PROB",
             "8_SEED_PROB",
         ]
-        west[seed_columns] = west[seed_columns].applymap(float)
-        east[seed_columns] = east[seed_columns].applymap(float)
+        west[seed_columns] = west[seed_columns].applymap(float).iloc[:8,]
+        east[seed_columns] = east[seed_columns].applymap(float).iloc[:8,]
         possible_seeds_dict = dict()
         for index, row in east.iterrows():
             team_id = team_id_to_abb_conv(row.TEAM_ID)
