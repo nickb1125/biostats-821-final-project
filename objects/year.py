@@ -127,6 +127,36 @@ class year:
         ].copy()
         all_games = all_games.pivot(index="GAME_ID", columns="HOME_AWAY").reset_index()
         all_games.columns = all_games.columns.map(lambda x: "_".join(x))
+        if len(all_games) == 0:
+            print("No regular season games have occurred.")
+            columns = [
+                "GAME_DATE",
+                "HOME_AWAY",
+                "TEAM_ID",
+                "TEAM_ABBREVIATION",
+                "PTS",
+                "FGM",
+                "FGA",
+                "FG_PCT",
+                "FG3M",
+                "FG3A",
+                "FG3_PCT",
+                "FTM",
+                "FTA",
+                "FT_PCT",
+                "OREB",
+                "DREB",
+                "REB",
+                "AST",
+                "STL",
+                "BLK",
+                "TOV",
+                "PF",
+                "PLUS_MINUS",
+            ]
+            new_columns = [name + suffix for name in columns for suffix in ["_H", "_A"]]
+            new_columns.append("GAME_ID")
+            all_games = pd.DataFrame(columns=new_columns)
         all_games["OUTCOME"] = [
             0 if PLUS_MINUS_H < 0 else 1 for PLUS_MINUS_H in all_games.PLUS_MINUS_H
         ]
@@ -279,6 +309,36 @@ class year:
         ].copy()
         all_games = all_games.pivot(index="GAME_ID", columns="HOME_AWAY").reset_index()
         all_games.columns = all_games.columns.map(lambda x: "_".join(x))
+        if len(all_games) == 0:
+            print("No playoff games have occured")
+            columns = [
+                "GAME_DATE",
+                "HOME_AWAY",
+                "TEAM_ID",
+                "TEAM_ABBREVIATION",
+                "PTS",
+                "FGM",
+                "FGA",
+                "FG_PCT",
+                "FG3M",
+                "FG3A",
+                "FG3_PCT",
+                "FTM",
+                "FTA",
+                "FT_PCT",
+                "OREB",
+                "DREB",
+                "REB",
+                "AST",
+                "STL",
+                "BLK",
+                "TOV",
+                "PF",
+                "PLUS_MINUS",
+            ]
+            new_columns = [name + suffix for name in columns for suffix in ["_H", "_A"]]
+            new_columns.append("GAME_ID")
+            all_games = pd.DataFrame(columns=new_columns)
         all_games["OUTCOME"] = [
             0 if PLUS_MINUS_H < 0 else 1 for PLUS_MINUS_H in all_games.PLUS_MINUS_H
         ]
