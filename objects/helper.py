@@ -111,13 +111,13 @@ def scrape_nba_playoff_projections():
         for td in tr.find_all("td"):
             row.append(td.text.strip())
         data.append(row)
-    data = list(
+    data = data = list(
         map(
             lambda row: [
                 row[i] if row[i] != "" else 0.0
-                for i in [0, 13, 14, 15, 16, 17, 18, 19, 20]
+                for i in [0, 9, 10, 11, 12, 13, 14, 15, 16]
             ],
-            [row for row in data if len(row) == 31],
+            [row for row in data if len(row) == 21],
         )
     )
     headers = [
@@ -140,13 +140,13 @@ def scrape_nba_playoff_projections():
         for td in tr.find_all("td"):
             row.append(td.text.strip())
         data.append(row)
-    data = list(
+    data = data = list(
         map(
             lambda row: [
                 row[i] if row[i] != "" else 0.0
-                for i in [0, 13, 14, 15, 16, 17, 18, 19, 20]
+                for i in [0, 9, 10, 11, 12, 13, 14, 15, 16]
             ],
-            [row for row in data if len(row) == 31],
+            [row for row in data if len(row) == 21],
         )
     )
     data_w = pd.DataFrame(data, columns=headers).merge(
